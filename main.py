@@ -23,8 +23,8 @@ class ElayvateWindow(QMainWindow):
         self.innerLayout().setSpacing(0)
         self.setMinimumSize(
             
-            int(self.screen().size().width() / 1.7), 
-            int(self.screen().size().height() / 1.7)
+            self.screen().size().width() // 3, 
+            self.screen().size().height() // 3
         )
     
     def innerLayout(self):

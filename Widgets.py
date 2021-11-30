@@ -1,16 +1,20 @@
 from Graphics import ScreenPreviewItem
 from Globals import Colors
 
-from PyQt6.QtCore import QMargins, Qt
+from PyQt6.QtCore import QEvent, QMargins, QPoint, Qt
 from PyQt6.QtWidgets import QFrame, QGraphicsScene, QGraphicsView, QLabel, QListWidget, QListWidgetItem, QMenu, QVBoxLayout, QWidget
-from PyQt6.QtGui import QContextMenuEvent, QResizeEvent
+from PyQt6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent
 
 class OverlayPreviewWidget(QFrame):
+
+    ZOOM_IN_SCALE = 1.25
+    ZOOM_OUT_SCALE = 0.75
 
     def __init__(self, parent: QWidget):
 
         super().__init__(parent)
 
+        self.isMoving = False
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene, self)
 
@@ -19,8 +23,10 @@ class OverlayPreviewWidget(QFrame):
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.view.setFrameShape(QFrame.Shape.NoFrame)
-
         self.view.setFixedSize(self.width(), self.height())
+
+        self.setMinimumSize(200, 200)
+        self.view.viewport().installEventFilter(self)
         self.setStyleSheet('background: {}'.format(Colors.MenuDark))
         self.drawTest()
 
@@ -30,10 +36,58 @@ class OverlayPreviewWidget(QFrame):
         height = self.screen().size().height() // 2
         self.scene.addItem(ScreenPreviewItem(width, height))
 
+    def eventFilter(self, source, e: QEvent) -> bool:
+
+        if e.type() == QEvent.Type.MouseButtonPress:
+            self.mousePressEvent(e)
+        if e.type() == QEvent.Type.MouseMove:
+            self.mouseMoveEvent(e)
+        if e.type() == QEvent.Type.MouseButtonRelease:
+            self.mouseReleaseEvent(e)
+
+        return super().eventFilter(source, e)
+
     def resizeEvent(self, e: QResizeEvent):
 
         super().resizeEvent(e)
         self.view.setFixedSize(self.width(), self.height())
+
+    def keyPressEvent(self, e: QKeyEvent) -> None:
+        
+        super().keyPressEvent(e)
+
+        # Zoom
+        if e.modifiers() is Qt.KeyboardModifier.ControlModifier:
+
+            if e.key() == Qt.Key.Key_Equal: self.view.scale(self.ZOOM_IN_SCALE, self.ZOOM_IN_SCALE)
+            elif e.key() == Qt.Key.Key_Minus: self.view.scale(self.ZOOM_OUT_SCALE, self.ZOOM_OUT_SCALE)
+
+    def mousePressEvent(self, e: QMouseEvent):
+        
+        super().mousePressEvent(e)
+
+        if e.button() != Qt.MouseButton.MiddleButton: return 
+        self._previousMousePosition = e.pos()
+        self.isMoving = True
+        
+    def mouseReleaseEvent(self, e: QMouseEvent):
+        
+        super().mouseReleaseEvent(e)
+        self.isMoving = False
+
+    def mouseMoveEvent(self, e: QMouseEvent):
+
+        super().mouseMoveEvent(e)
+        if not self.isMoving: return 
+
+        offset: QPoint = self._previousMousePosition - e.pos()
+        self._previousMousePosition = e.pos()
+
+        vertSB = self.view.verticalScrollBar()
+        horiSB = self.view.horizontalScrollBar()
+
+        vertSB.setValue(vertSB.value() + offset.y())
+        horiSB.setValue(horiSB.value() + offset.x())
 
 class OverlayItemsWidget(QWidget):
 
