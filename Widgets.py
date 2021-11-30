@@ -2,7 +2,7 @@ from Graphics import ScreenPreviewItem
 from Globals import Colors
 
 from PyQt6.QtCore import QEvent, QMargins, QPoint, Qt
-from PyQt6.QtWidgets import QFrame, QGraphicsScene, QGraphicsView, QLabel, QListWidget, QListWidgetItem, QMenu, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QFrame, QGraphicsScene, QGraphicsView, QLabel, QListWidget, QListWidgetItem, QMenu, QVBoxLayout, QWidget
 from PyQt6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent
 
 class OverlayPreviewWidget(QFrame):
@@ -69,11 +69,16 @@ class OverlayPreviewWidget(QFrame):
         if e.button() != Qt.MouseButton.MiddleButton: return 
         self._previousMousePosition = e.pos()
         self.isMoving = True
+
+        application: QApplication = QApplication.instance()
+        application.setOverrideCursor(Qt.CursorShape.OpenHandCursor)
         
     def mouseReleaseEvent(self, e: QMouseEvent):
         
         super().mouseReleaseEvent(e)
         self.isMoving = False
+        application: QApplication = QApplication.instance()
+        application.restoreOverrideCursor()
 
     def mouseMoveEvent(self, e: QMouseEvent):
 
