@@ -1,7 +1,7 @@
 
-from Globals import Colors
-from PyQt6.QtGui import QColor, QMouseEvent, QPen
-from PyQt6.QtWidgets import QApplication, QGraphicsItem, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent, QLineEdit, QMainWindow
+from Globals import Colors, Math
+from PyQt6.QtGui import QColor
+from PyQt6.QtWidgets import QApplication, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent
 from PyQt6.QtCore import Qt
 
 class ImageItem(QGraphicsRectItem):
@@ -31,7 +31,6 @@ class ImageItem(QGraphicsRectItem):
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
 
         super().mouseMoveEvent(event)
-        print('here')
 
 class ScreenPreviewItem(QGraphicsItemGroup):
 
@@ -41,16 +40,18 @@ class ScreenPreviewItem(QGraphicsItemGroup):
         
         self.width = width
         self.height = height 
-        self.cellSize = (self.width + self.height) // 100
+        self.cellSize = Math.toCellSize(self.width + self.height)
 
-        print(self.cellSize)
         screen = QGraphicsRectItem(0, 0, width, height)
         screen.setBrush(QColor(Colors.GraySelected))
+        screen.setPen(QColor(Colors.GraySelected))
+        
         self.addToGroup(screen)
         self.drawGrid()
 
     def drawGrid(self):
 
+        # Vertical
         for i in range(1, self.width // self.cellSize):
 
             x = i * self.cellSize
@@ -63,6 +64,7 @@ class ScreenPreviewItem(QGraphicsItemGroup):
             line.setPen(QColor(Colors.White))
             self.addToGroup(line)
 
+        # Horizontal
         for i in range(1, self.height // self.cellSize):
 
             y = i * self.cellSize

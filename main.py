@@ -4,10 +4,10 @@ from Globals import Style
 from Widgets import OverlayItemsWidget, OverlayPreviewWidget
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QStackedLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QWidget
 from PyQt6.QtGui import QAction
 
-class PyCrossWindow(QMainWindow):
+class EylavateWindow(QMainWindow):
     
     def __init__(self):
         
@@ -15,13 +15,17 @@ class PyCrossWindow(QMainWindow):
         self.setCentralWidget(QWidget(self))
         QHBoxLayout(self.centralWidget())
 
-        self.setWindowTitle('PyCross')
+        self.setWindowTitle('Elayvate')
         self.createMenuBar()
         self.createItemsBox()
         self.createOverlayBox()
         self.innerLayout().setContentsMargins(0, 0, 0, 0)
         self.innerLayout().setSpacing(0)
-        self.setMinimumSize(1300, 750)
+        self.setMinimumSize(
+            
+            int(self.screen().size().width() / 1.7), 
+            int(self.screen().size().height() / 1.7)
+        )
     
     def innerLayout(self):
         return self.centralWidget().layout()
@@ -92,7 +96,7 @@ class PyCrossWindow(QMainWindow):
 if __name__ == '__main__':
 
     app = QApplication([])
-    window = PyCrossWindow()
+    window = EylavateWindow()
     app.setStyleSheet(Style.QApplication)
     window.show()
     sys.exit(app.exec())

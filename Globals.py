@@ -44,6 +44,11 @@ class Style:
             background-color: #094771;
             color: #fff;
         }
+
+        QMenu::item::disabled {
+
+            color: gray;
+        }
     '''
 
 class Colors:
@@ -54,3 +59,8 @@ class Colors:
     MenuLight = '#3c3c3c'
     GraySelected = '#505050'
     BlueSelected = '#252526'
+
+class Math:
+
+    def toCellSize(n):
+        return int(str(n)[0]) * 10

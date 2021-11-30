@@ -2,8 +2,8 @@ from Graphics import ScreenPreviewItem
 from Globals import Colors
 
 from PyQt6.QtCore import QMargins, Qt
-from PyQt6.QtWidgets import QFrame, QGraphicsLineItem, QGraphicsScene, QGraphicsView, QLabel, QListView, QVBoxLayout, QWidget
-from PyQt6.QtGui import QBrush, QPen, QResizeEvent, QStandardItem, QStandardItemModel
+from PyQt6.QtWidgets import QFrame, QGraphicsScene, QGraphicsView, QLabel, QListWidget, QListWidgetItem, QMenu, QVBoxLayout, QWidget
+from PyQt6.QtGui import QContextMenuEvent, QResizeEvent
 
 class OverlayPreviewWidget(QFrame):
 
@@ -13,7 +13,6 @@ class OverlayPreviewWidget(QFrame):
 
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene, self)
-        self.magnification = 0
 
         self.view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.view.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
@@ -53,15 +52,52 @@ class OverlayItemsWidget(QWidget):
         QVBoxLayout(self)
 
         self.label = QLabel('Items')
-        self.listView = QListView(self)
-        self.listModel = QStandardItemModel(self.listView)
-
-        self.listView.setModel(self.listModel)
-        self.listModel.appendRow(QStandardItem('Test'))
+        self.list = QListWidget()
+        
         self.layout().addWidget(self.label)
-        self.layout().addWidget(self.listView)
+        self.layout().addWidget(self.list)
         self.stylize()
-    
+
+    def contextMenuEvent(self, e: QContextMenuEvent):
+        
+        super().contextMenuEvent(e)
+        contextMenu = QMenu(self)
+        newMenu = contextMenu.addMenu('New')
+        newImage = newMenu.addAction('Image')
+        newText = newMenu.addAction('Text')
+
+        contextMenu.addSeparator()
+
+        deleteItem = contextMenu.addAction('Delete')
+        duplicateItem = contextMenu.addAction('Duplicate')
+        renameItem = contextMenu.addAction('Rename')
+
+        if self.list.currentItem() is None: 
+
+            deleteItem.setVisible(False)
+            duplicateItem.setVisible(False)
+            renameItem.setVisible(False)
+
+        action = contextMenu.exec(self.mapToGlobal(e.pos()))
+
+        if   action is deleteItem: self.removeItem(self.list.currentItem())
+        elif action is renameItem: self.list.editItem(self.list.currentItem())
+        elif action is newImage: self.addItem(QListWidgetItem('Test'))
+
+    def removeItem(self, item: QListWidgetItem) -> bool:
+
+        return self.list.takeItem(self.list.indexFromItem(item).row()) is not None
+
+    def addItem(self, item: QListWidgetItem):
+
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+        self.list.addItem(item)
+
+    def resizeEvent(self, e: QResizeEvent):
+        
+        super().resizeEvent(e)
+        self.move(0, 0)
+
     def stylize(self):
 
         self.setFixedWidth(self.WIDTH)
@@ -72,12 +108,7 @@ class OverlayItemsWidget(QWidget):
         self.label.setContentsMargins(self.CHILD_MARGINS)
 
         # List
-        self.listView.setStyleSheet('border: 0px; background-color: #252526; color: white')
-        self.listView.setContentsMargins(self.CHILD_MARGINS)
+        self.list.setStyleSheet('border: 0px; background-color: #252526; color: white')
+        self.list.setContentsMargins(self.CHILD_MARGINS)
         self.layout().setContentsMargins(self.MARGINS)
         self.layout().setSpacing(self.SPACING)
-
-    def resizeEvent(self, e: QResizeEvent):
-        
-        super().resizeEvent(e)
-        self.move(0, 0)
