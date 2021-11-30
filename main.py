@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QWidget
 from PyQt6.QtGui import QAction
 
-class EylavateWindow(QMainWindow):
+class ElayvateWindow(QMainWindow):
     
     def __init__(self):
         
@@ -96,7 +96,7 @@ class EylavateWindow(QMainWindow):
 if __name__ == '__main__':
 
     app = QApplication([])
-    window = EylavateWindow()
+    window = ElayvateWindow()
     app.setStyleSheet(Style.QApplication)
     window.show()
     sys.exit(app.exec())
