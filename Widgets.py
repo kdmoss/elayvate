@@ -1,5 +1,5 @@
 from Graphics import ScreenPreviewItem
-from Globals import Colors
+from Globals import Colors, Style
 
 from PyQt6.QtCore import QEvent, QMargins, QPoint, Qt
 from PyQt6.QtWidgets import QApplication, QFrame, QGraphicsScene, QGraphicsView, QLabel, QListWidget, QListWidgetItem, QMenu, QVBoxLayout, QWidget
@@ -23,9 +23,7 @@ class OverlayPreviewWidget(QFrame):
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.view.setFrameShape(QFrame.Shape.NoFrame)
-        self.view.setFixedSize(self.width(), self.height())
 
-        self.setMinimumSize(200, 200)
         self.view.viewport().installEventFilter(self)
         self.setStyleSheet('background: {}'.format(Colors.MenuDark))
         self.drawTest()
@@ -40,10 +38,10 @@ class OverlayPreviewWidget(QFrame):
 
         if e.type() == QEvent.Type.MouseButtonPress:
             self.mousePressEvent(e)
-        if e.type() == QEvent.Type.MouseMove:
-            self.mouseMoveEvent(e)
         if e.type() == QEvent.Type.MouseButtonRelease:
             self.mouseReleaseEvent(e)
+        if e.type() == QEvent.Type.MouseMove:
+            self.mouseMoveEvent(e)
 
         return super().eventFilter(source, e)
 
@@ -97,7 +95,6 @@ class OverlayPreviewWidget(QFrame):
 class OverlayItemsWidget(QWidget):
 
     # Constants
-    WIDTH = 200
     MARGINS = QMargins(0, 0, 0, 0)
     SPACING = 0
 
@@ -113,6 +110,10 @@ class OverlayItemsWidget(QWidget):
         self.label = QLabel('Items')
         self.list = QListWidget()
         
+        seperator = QFrame()
+        seperator.setFrameShape(QFrame.Shape.HLine)
+        seperator.setFrameShadow(QFrame.Shadow.Sunken)
+
         self.layout().addWidget(self.label)
         self.layout().addWidget(self.list)
         self.stylize()
@@ -159,15 +160,13 @@ class OverlayItemsWidget(QWidget):
 
     def stylize(self):
 
-        self.setFixedWidth(self.WIDTH)
-        
+        self.setStyleSheet(Style.OverlayItemsWidget)
+
         # Label
-        self.label.setStyleSheet('background-color: #333333; color: white; font-weight: bold')
         self.label.setFixedHeight(self.LABEL_HEIGHT)
         self.label.setContentsMargins(self.CHILD_MARGINS)
 
         # List
-        self.list.setStyleSheet('border: 0px; background-color: #252526; color: white')
         self.list.setContentsMargins(self.CHILD_MARGINS)
         self.layout().setContentsMargins(self.MARGINS)
         self.layout().setSpacing(self.SPACING)

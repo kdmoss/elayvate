@@ -1,4 +1,5 @@
 class Style:
+
     QPushButton = '''
 
         QPushButton {
@@ -49,6 +50,62 @@ class Style:
 
             color: gray;
         }
+
+        QSplitter::handle:horizontal {
+
+            background: #252526;
+        }
+
+        QSplitter::handle:pressed,
+        QSplitter:hover {
+
+            background: #007fd4;
+        }
+    '''
+
+    OverlayItemsWidget = '''
+
+        QLabel {
+
+            background-color: #252526; 
+            color: white; 
+            font-weight: bold; 
+            border-bottom: 1px solid #333333;
+        }
+
+        QListView {
+
+            outline: none;
+            border: 0px; 
+            background-color: #252526; 
+            color: white;
+        }
+
+        QListView::item {
+
+            color: #fff;
+        }
+
+        QListView::item:hover {
+
+            background: #2a2d2e;
+        }
+
+        QListView::item:selected,
+        QListView::item:alternate {
+
+            border: 1px solid #007fd4;
+        }
+
+        QListView::item:selected:!active {
+
+            background: #094771;
+        }
+
+        QListView::item:selected:active {
+
+            background: #094771;
+        }        
     '''
 
 class Colors:
@@ -58,9 +115,10 @@ class Colors:
     MenuMedium = '#252526'
     MenuLight = '#3c3c3c'
     GraySelected = '#505050'
-    BlueSelected = '#252526'
+    BlueSelected = '#094771'
 
 class Math:
 
     def toCellSize(n):
+
         return int(str(n)[0]) * 10

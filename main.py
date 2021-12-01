@@ -1,10 +1,12 @@
 import sys
 
+from PyQt6 import QtCore
+
 from Globals import Style 
 from Widgets import OverlayItemsWidget, OverlayPreviewWidget
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QWidget
+from PyQt6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QSplitter, QWidget
 from PyQt6.QtGui import QAction
 
 class ElayvateWindow(QMainWindow):
@@ -14,6 +16,7 @@ class ElayvateWindow(QMainWindow):
         super().__init__()
         self.setCentralWidget(QWidget(self))
         QHBoxLayout(self.centralWidget())
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self.setWindowTitle('Elayvate')
         self.createMenuBar()
@@ -26,6 +29,7 @@ class ElayvateWindow(QMainWindow):
             self.screen().size().width() // 3, 
             self.screen().size().height() // 3
         )
+        self.innerLayout().addWidget(self.splitter)
     
     def innerLayout(self):
         return self.centralWidget().layout()
@@ -85,12 +89,12 @@ class ElayvateWindow(QMainWindow):
     def createItemsBox(self):
         
         self.itemsFrame = OverlayItemsWidget(self.centralWidget())
-        self.innerLayout().addWidget(self.itemsFrame)
+        self.splitter.addWidget(self.itemsFrame)
 
     def createOverlayBox(self):
 
         self.overlayFrame = OverlayPreviewWidget(self.centralWidget())
-        self.innerLayout().addWidget(self.overlayFrame)
+        self.splitter.addWidget(self.overlayFrame)
 
 
 if __name__ == '__main__':
