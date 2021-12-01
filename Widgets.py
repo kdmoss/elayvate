@@ -28,12 +28,6 @@ class OverlayPreviewWidget(QFrame):
         self.setStyleSheet('background: {}'.format(Colors.MenuDark))
         self.drawTest()
 
-    def drawTest(self):
-
-        width = self.screen().size().width() // 2
-        height = self.screen().size().height() // 2
-        self.scene.addItem(ScreenPreviewItem(width, height))
-
     def eventFilter(self, source, e: QEvent) -> bool:
 
         if e.type() == QEvent.Type.MouseButtonPress:
@@ -59,6 +53,16 @@ class OverlayPreviewWidget(QFrame):
 
             if e.key() == Qt.Key.Key_Equal: self.view.scale(self.ZOOM_IN_SCALE, self.ZOOM_IN_SCALE)
             elif e.key() == Qt.Key.Key_Minus: self.view.scale(self.ZOOM_OUT_SCALE, self.ZOOM_OUT_SCALE)
+
+    def contextMenuEvent(self, e: QContextMenuEvent):
+        
+        super().contextMenuEvent(e)
+
+        contextMenu = QMenu(self)
+        scaleToFit = contextMenu.addAction('Scale to Fit')
+        action = contextMenu.exec(self.mapToGlobal(e.pos()))
+        
+        if action is scaleToFit: self.scaleToFit()
 
     def mousePressEvent(self, e: QMouseEvent):
         
@@ -91,6 +95,17 @@ class OverlayPreviewWidget(QFrame):
 
         vertSB.setValue(vertSB.value() + offset.y())
         horiSB.setValue(horiSB.value() + offset.x())
+
+    def drawTest(self):
+
+        width = self.screen().size().width() // 2
+        height = self.screen().size().height() // 2
+        self.screenPreviewItem = ScreenPreviewItem(width, height)
+        self.scene.addItem(self.screenPreviewItem)
+
+    def scaleToFit(self):
+
+        self.view.fitInView(self.screenPreviewItem.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
 class OverlayItemsWidget(QWidget):
 

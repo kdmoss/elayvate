@@ -24,13 +24,14 @@ class ElayvateWindow(QMainWindow):
         self.createOverlayBox()
         self.innerLayout().setContentsMargins(0, 0, 0, 0)
         self.innerLayout().setSpacing(0)
-        self.setMinimumSize(
+        self.innerLayout().addWidget(self.splitter)
+        self.resize(
             
             self.screen().size().width() // 3, 
             self.screen().size().height() // 3
         )
-        self.innerLayout().addWidget(self.splitter)
-    
+        self.splitter.setSizes([5, 500])
+
     def innerLayout(self):
         return self.centralWidget().layout()
 

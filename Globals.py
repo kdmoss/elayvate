@@ -56,10 +56,10 @@ class Style:
             background: #252526;
         }
 
-        QSplitter::handle:pressed,
-        QSplitter:hover {
+        QSplitter::handle:pressed {
 
             background: #007fd4;
+            outline: 10px dotted #fff;
         }
     '''
 
