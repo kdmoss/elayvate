@@ -7,8 +7,7 @@ from PyQt6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent
 
 class OverlayPreviewWidget(QFrame):
 
-    ZOOM_IN_SCALE = 1.25
-    ZOOM_OUT_SCALE = 0.75
+    ZOOM_FACTOR = 1.25
 
     def __init__(self, parent: QWidget):
 
@@ -51,18 +50,23 @@ class OverlayPreviewWidget(QFrame):
         # Zoom
         if e.modifiers() is Qt.KeyboardModifier.ControlModifier:
 
-            if e.key() == Qt.Key.Key_Equal: self.view.scale(self.ZOOM_IN_SCALE, self.ZOOM_IN_SCALE)
-            elif e.key() == Qt.Key.Key_Minus: self.view.scale(self.ZOOM_OUT_SCALE, self.ZOOM_OUT_SCALE)
+            if e.key() == Qt.Key.Key_Equal: self.zoomIn()
+            elif e.key() == Qt.Key.Key_Minus: self.zoomOut()
 
     def contextMenuEvent(self, e: QContextMenuEvent):
         
         super().contextMenuEvent(e)
 
         contextMenu = QMenu(self)
-        scaleToFit = contextMenu.addAction('Scale to Fit')
+
+        zoomIn = contextMenu.addAction('Zoom In')
+        zoomOut = contextMenu.addAction('Zoom Out')
+        resetZoom = contextMenu.addAction('Fill Window')
         action = contextMenu.exec(self.mapToGlobal(e.pos()))
         
-        if action is scaleToFit: self.scaleToFit()
+        if action is zoomIn: self.zoomIn()
+        if action is zoomOut: self.zoomOut()
+        if action is resetZoom: self.fitScreen()
 
     def mousePressEvent(self, e: QMouseEvent):
         
@@ -103,7 +107,15 @@ class OverlayPreviewWidget(QFrame):
         self.screenPreviewItem = ScreenPreviewItem(width, height)
         self.scene.addItem(self.screenPreviewItem)
 
-    def scaleToFit(self):
+    def zoomIn(self):
+
+        self.view.scale(self.ZOOM_FACTOR, self.ZOOM_FACTOR)
+
+    def zoomOut(self):
+
+        self.view.scale(1 / self.ZOOM_FACTOR, 1 / self.ZOOM_FACTOR)
+
+    def fitScreen(self):
 
         self.view.fitInView(self.screenPreviewItem.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
 

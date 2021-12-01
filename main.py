@@ -30,6 +30,7 @@ class ElayvateWindow(QMainWindow):
             self.screen().size().width() // 3, 
             self.screen().size().height() // 3
         )
+        self.setMinimumSize(300, 100)
         self.splitter.setSizes([5, 500])
 
     def innerLayout(self):
