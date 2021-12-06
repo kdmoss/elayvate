@@ -1,12 +1,24 @@
-from Graphics import ScreenPreviewItem
-from Globals import Colors, Style
+from Graphics import ImageItem, ScreenPreviewItem
+from Globals import Colors, Math, Style
 
-from PyQt6.QtCore import QEvent, QMargins, QPoint, Qt
-from PyQt6.QtWidgets import QApplication, QFrame, QGraphicsScene, QGraphicsView, QLabel, QListWidget, QListWidgetItem, QMenu, QVBoxLayout, QWidget
-from PyQt6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent
+from PySide6.QtCore import QEvent, QMargins, QPoint, Qt, Signal
+from PySide6.QtWidgets import QApplication, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QLabel, QListWidget, QListWidgetItem, QMenu, QVBoxLayout, QWidget
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent
 
-class OverlayPreviewWidget(QFrame):
+from Models import OverlayItem
 
+class OverlayWidget(QWidget):
+
+    # Signals
+    itemAdded = Signal(object)
+
+    def __init__(self, parent: QWidget):
+
+        super().__init__(parent)
+
+class OverlayPreviewWidget(OverlayWidget):
+
+    # Constants
     ZOOM_FACTOR = 1.25
 
     def __init__(self, parent: QWidget):
@@ -25,16 +37,13 @@ class OverlayPreviewWidget(QFrame):
 
         self.view.viewport().installEventFilter(self)
         self.setStyleSheet('background: {}'.format(Colors.MenuDark))
-        self.drawTest()
-
+        self.drawScreenPreview()
+        
     def eventFilter(self, source, e: QEvent) -> bool:
 
-        if e.type() == QEvent.Type.MouseButtonPress:
-            self.mousePressEvent(e)
-        if e.type() == QEvent.Type.MouseButtonRelease:
-            self.mouseReleaseEvent(e)
-        if e.type() == QEvent.Type.MouseMove:
-            self.mouseMoveEvent(e)
+        if   e.type() == QEvent.Type.MouseButtonPress: self.mousePressEvent(e)
+        elif e.type() == QEvent.Type.MouseButtonRelease: self.mouseReleaseEvent(e)
+        elif e.type() == QEvent.Type.MouseMove: self.mouseMoveEvent(e)
 
         return super().eventFilter(source, e)
 
@@ -43,14 +52,14 @@ class OverlayPreviewWidget(QFrame):
         super().resizeEvent(e)
         self.view.setFixedSize(self.width(), self.height())
 
-    def keyPressEvent(self, e: QKeyEvent) -> None:
+    def keyPressEvent(self, e: QKeyEvent):
         
         super().keyPressEvent(e)
 
         # Zoom
         if e.modifiers() is Qt.KeyboardModifier.ControlModifier:
 
-            if e.key() == Qt.Key.Key_Equal: self.zoomIn()
+            if   e.key() == Qt.Key.Key_Equal: self.zoomIn()
             elif e.key() == Qt.Key.Key_Minus: self.zoomOut()
 
     def contextMenuEvent(self, e: QContextMenuEvent):
@@ -58,15 +67,19 @@ class OverlayPreviewWidget(QFrame):
         super().contextMenuEvent(e)
 
         contextMenu = QMenu(self)
+        newMenu = contextMenu.addMenu('New')
+        viewMenu = contextMenu.addMenu('View')
 
-        zoomIn = contextMenu.addAction('Zoom In')
-        zoomOut = contextMenu.addAction('Zoom Out')
-        resetZoom = contextMenu.addAction('Fill Window')
+        newImage = newMenu.addAction('Image')
+        zoomIn = viewMenu.addAction('Zoom In')
+        zoomOut = viewMenu.addAction('Zoom Out')
+        fillWindow = viewMenu.addAction('Fill Window')
         action = contextMenu.exec(self.mapToGlobal(e.pos()))
         
+        if action is newImage: self.addItem(position=e.pos())
         if action is zoomIn: self.zoomIn()
         if action is zoomOut: self.zoomOut()
-        if action is resetZoom: self.fitScreen()
+        if action is fillWindow: self.fitScreen()
 
     def mousePressEvent(self, e: QMouseEvent):
         
@@ -77,7 +90,7 @@ class OverlayPreviewWidget(QFrame):
         self.isMoving = True
 
         application: QApplication = QApplication.instance()
-        application.setOverrideCursor(Qt.CursorShape.OpenHandCursor)
+        application.setOverrideCursor(Qt.CursorShape.SizeAllCursor)
         
     def mouseReleaseEvent(self, e: QMouseEvent):
         
@@ -100,12 +113,30 @@ class OverlayPreviewWidget(QFrame):
         vertSB.setValue(vertSB.value() + offset.y())
         horiSB.setValue(horiSB.value() + offset.x())
 
-    def drawTest(self):
+    def drawScreenPreview(self):
 
         width = self.screen().size().width() // 2
         height = self.screen().size().height() // 2
-        self.screenPreviewItem = ScreenPreviewItem(width, height)
+
+        self.cellSize = Math.toCellSize(width + height)
+        self.screenPreviewItem = ScreenPreviewItem(width, height, self.cellSize)
         self.scene.addItem(self.screenPreviewItem)
+
+    def addItem(self, item: OverlayItem = None, position: QPoint = None):
+
+        preview = ImageItem(0, 0, 100, 100, self.cellSize)
+
+        if position is not None: 
+
+            position = self.view.mapToScene(position)
+            position = Math.gridSnap(position.x(), position.y(), self.cellSize)
+            preview = ImageItem(position.x(), position.y(), 100, 100, self.cellSize)
+
+        if item is not None: preview = ImageItem(item.x, item.y, item.width, item.height, self.cellSize)
+
+        preview.setBrush(Qt.GlobalColor.white)
+        self.scene.addItem(preview)
+        if item is None: self.itemAdded.emit(preview)
 
     def zoomIn(self):
 
@@ -117,10 +148,14 @@ class OverlayPreviewWidget(QFrame):
 
     def fitScreen(self):
 
-        self.view.fitInView(self.screenPreviewItem.boundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.view.fitInView(
 
-class OverlayItemsWidget(QWidget):
+            self.screenPreviewItem.boundingRect(), 
+            Qt.AspectRatioMode.KeepAspectRatio
+        )
 
+class OverlayItemsWidget(OverlayWidget):
+        
     # Constants
     MARGINS = QMargins(0, 0, 0, 0)
     SPACING = 0
@@ -151,34 +186,20 @@ class OverlayItemsWidget(QWidget):
         contextMenu = QMenu(self)
         newMenu = contextMenu.addMenu('New')
         newImage = newMenu.addAction('Image')
-        newText = newMenu.addAction('Text')
 
         contextMenu.addSeparator()
 
         deleteItem = contextMenu.addAction('Delete')
-        duplicateItem = contextMenu.addAction('Duplicate')
         renameItem = contextMenu.addAction('Rename')
 
         if self.list.currentItem() is None: 
 
             deleteItem.setVisible(False)
-            duplicateItem.setVisible(False)
             renameItem.setVisible(False)
 
         action = contextMenu.exec(self.mapToGlobal(e.pos()))
 
-        if   action is deleteItem: self.removeItem(self.list.currentItem())
-        elif action is renameItem: self.list.editItem(self.list.currentItem())
-        elif action is newImage: self.addItem(QListWidgetItem('Test'))
-
-    def removeItem(self, item: QListWidgetItem) -> bool:
-
-        return self.list.takeItem(self.list.indexFromItem(item).row()) is not None
-
-    def addItem(self, item: QListWidgetItem):
-
-        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-        self.list.addItem(item)
+        if action is newImage: self.addItem()
 
     def resizeEvent(self, e: QResizeEvent):
         
@@ -197,3 +218,11 @@ class OverlayItemsWidget(QWidget):
         self.list.setContentsMargins(self.CHILD_MARGINS)
         self.layout().setContentsMargins(self.MARGINS)
         self.layout().setSpacing(self.SPACING)
+
+    def addItem(self, item: OverlayItem = None):
+
+        widget = QListWidgetItem('Image')
+        if item is not None: widget = QListWidgetItem(item.name)
+
+        self.list.addItem(widget)
+        if item is None: self.itemAdded.emit(widget)

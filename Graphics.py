@@ -1,16 +1,17 @@
 
 from Globals import Colors, Math
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QApplication, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent
-from PyQt6.QtCore import Qt
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent
+from PySide6.QtCore import Qt
 
 class ImageItem(QGraphicsRectItem):
 
-    def __init__(self):
+    def __init__(self, x: int, y: int, width: int, height: int, cellSize: int):
 
-        super().__init__(0, 0, 100, 100)
+        super().__init__(x, y, width, height)
         self.setAcceptHoverEvents(True)
         self.setBrush(Qt.GlobalColor.blue)
+        self.cellSize = cellSize
 
     def hoverEnterEvent(self, event: QGraphicsSceneHoverEvent):
         
@@ -28,20 +29,27 @@ class ImageItem(QGraphicsRectItem):
 
         pass
 
+    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
+
+        self.setPos(
+            Math.gridSnap(self.x(), self.y(), self.cellSize)
+        )
+
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
 
         super().mouseMoveEvent(event)
+        self.setX(event.scenePos().x() - event.lastScenePos().x() + self.scenePos().x())
+        self.setY(event.scenePos().y() - event.lastScenePos().y() + self.scenePos().y())
 
 class ScreenPreviewItem(QGraphicsItemGroup):
 
-    def __init__(self, width, height):
+    def __init__(self, width: int, height: int, cellSize: int):
 
         super().__init__()
         
         self.width = width
         self.height = height 
-        self.cellSize = Math.toCellSize(self.width + self.height)
-
+        self.cellSize = cellSize
         screen = QGraphicsRectItem(0, 0, width, height)
         screen.setBrush(QColor(Colors.GraySelected))
         screen.setPen(QColor(Colors.GraySelected))

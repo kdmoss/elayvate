@@ -1,3 +1,8 @@
+from typing import Dict
+
+from PySide6.QtCore import QPoint
+
+
 class Style:
 
     QPushButton = '''
@@ -122,3 +127,30 @@ class Math:
     def toCellSize(n):
 
         return int(str(n)[0]) * 10
+
+    def gridSnap(x: int, y: int, cell: int):
+        return QPoint(round(x / cell) * cell, round(y / cell) * cell)
+
+class BiDict(Dict):
+
+    def __init__(self):
+
+        super().__init__()
+
+        self.inverse = {}
+        for key, value in self.items():
+            self.inverse.setdefault(value,[]).append(key) 
+
+    def __setitem__(self, key, value):
+
+        if key in self: self.inverse[self[key]].remove(key) 
+        super().__setitem__(key, value)
+        self.inverse.setdefault(value,[]).append(key)        
+
+    def __delitem__(self, key):
+
+        self.inverse.setdefault(self[key],[]).remove(key)
+        if self[key] in self.inverse and not self.inverse[self[key]]: 
+            
+            del self.inverse[self[key]]
+        super().__delitem__(key)

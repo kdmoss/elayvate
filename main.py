@@ -1,16 +1,17 @@
 import sys
+from typing import List
 
-from PyQt6 import QtCore
+from Globals import Style
+from Widgets import OverlayItem, OverlayItemsWidget, OverlayPreviewWidget
 
-from Globals import Style 
-from Widgets import OverlayItemsWidget, OverlayPreviewWidget
-
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QSplitter, QWidget
-from PyQt6.QtGui import QAction
+from PySide6.QtCore import QObject, Qt, Slot
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QHBoxLayout, QListWidgetItem, QMainWindow, QSplitter, QWidget
+from PySide6.QtGui import QAction
 
 class ElayvateWindow(QMainWindow):
     
+    items: List[OverlayItem] = []
+
     def __init__(self):
         
         super().__init__()
@@ -34,6 +35,7 @@ class ElayvateWindow(QMainWindow):
         self.splitter.setSizes([5, 500])
 
     def innerLayout(self):
+
         return self.centralWidget().layout()
 
     def createMenuBar(self):
@@ -91,12 +93,37 @@ class ElayvateWindow(QMainWindow):
     def createItemsBox(self):
         
         self.itemsFrame = OverlayItemsWidget(self.centralWidget())
+
+        self.itemsFrame.itemAdded.connect(self.onItemAdded)
         self.splitter.addWidget(self.itemsFrame)
 
     def createOverlayBox(self):
 
         self.overlayFrame = OverlayPreviewWidget(self.centralWidget())
+
+        self.overlayFrame.itemAdded.connect(self.onItemAdded)
         self.splitter.addWidget(self.overlayFrame)
+
+    @Slot(QObject)
+    def onItemAdded(self, object: QObject):
+        
+        item = OverlayItem()
+        
+        if isinstance(object, QGraphicsItem):
+            
+             item.x = object.x()
+             item.y = object.y()
+             item.width = object.boundingRect().width()
+             item.height = object.boundingRect().height()
+             
+             self.itemsFrame.addItem(item)
+
+        elif isinstance(object, QListWidgetItem): 
+            
+            item.name = object.text()
+            self.overlayFrame.addItem(item)
+
+        self.items.append(item)
 
 
 if __name__ == '__main__':
