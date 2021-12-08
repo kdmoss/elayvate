@@ -1,16 +1,17 @@
-from Graphics import ImageItem, ScreenPreviewItem
+from Items import OverlayGraphicsItem, OverlayListWidgetItem, ScreenPreviewItem
 from Globals import Colors, Math, Style
+from Models import OverlayItem, OverlayItemProxy
 
-from PySide6.QtCore import QEvent, QMargins, QPoint, Qt, Signal
-from PySide6.QtWidgets import QApplication, QFrame, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QLabel, QListWidget, QListWidgetItem, QMenu, QVBoxLayout, QWidget
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent
-
-from Models import OverlayItem
+from PySide6.QtCore import QEvent, QMargins, QPoint, QSize, Qt, Signal, Slot
+from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent, QTextBlock
 
 class OverlayWidget(QWidget):
 
     # Signals
     itemAdded = Signal(object)
+    itemDeleted = Signal(object)
+    itemRenamed = Signal(object)
 
     def __init__(self, parent: QWidget):
 
@@ -28,7 +29,6 @@ class OverlayPreviewWidget(OverlayWidget):
         self.isMoving = False
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene, self)
-
         self.view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.view.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -122,22 +122,6 @@ class OverlayPreviewWidget(OverlayWidget):
         self.screenPreviewItem = ScreenPreviewItem(width, height, self.cellSize)
         self.scene.addItem(self.screenPreviewItem)
 
-    def addItem(self, item: OverlayItem = None, position: QPoint = None):
-
-        preview = ImageItem(0, 0, 100, 100, self.cellSize)
-
-        if position is not None: 
-
-            position = self.view.mapToScene(position)
-            position = Math.gridSnap(position.x(), position.y(), self.cellSize)
-            preview = ImageItem(position.x(), position.y(), 100, 100, self.cellSize)
-
-        if item is not None: preview = ImageItem(item.x, item.y, item.width, item.height, self.cellSize)
-
-        preview.setBrush(Qt.GlobalColor.white)
-        self.scene.addItem(preview)
-        if item is None: self.itemAdded.emit(preview)
-
     def zoomIn(self):
 
         self.view.scale(self.ZOOM_FACTOR, self.ZOOM_FACTOR)
@@ -153,6 +137,30 @@ class OverlayPreviewWidget(OverlayWidget):
             self.screenPreviewItem.boundingRect(), 
             Qt.AspectRatioMode.KeepAspectRatio
         )
+
+    def addItem(self, proxy: OverlayItemProxy = None, position: QPoint = None):
+
+        preview = OverlayGraphicsItem(self, 0, 0, self.cellSize * 4, self.cellSize * 4)
+
+        if position is not None: 
+
+            position = self.view.mapToScene(position)
+            position = Math.gridSnap(position.x(), position.y(), self.cellSize)
+            preview.setPos(position)
+
+        self.scene.addItem(preview)
+        if proxy is None: self.itemAdded.emit(preview)
+        else: proxy.graphics = preview
+
+    def deleteItem(self, proxy: OverlayItemProxy = None, graphics: QGraphicsRectItem = None):
+
+        if graphics is not None: 
+            
+            self.scene.removeItem(graphics)
+            self.itemDeleted.emit(graphics)
+            return 
+
+        if proxy is not None: self.scene.removeItem(proxy.graphics)
 
 class OverlayItemsWidget(OverlayWidget):
         
@@ -171,13 +179,11 @@ class OverlayItemsWidget(OverlayWidget):
 
         self.label = QLabel('Items')
         self.list = QListWidget()
-        
-        seperator = QFrame()
-        seperator.setFrameShape(QFrame.Shape.HLine)
-        seperator.setFrameShadow(QFrame.Shadow.Sunken)
+        self.props = OverlayItemPropertiesWidget(self)
 
         self.layout().addWidget(self.label)
         self.layout().addWidget(self.list)
+        self.layout().addWidget(self.props)
         self.stylize()
 
     def contextMenuEvent(self, e: QContextMenuEvent):
@@ -200,6 +206,7 @@ class OverlayItemsWidget(OverlayWidget):
         action = contextMenu.exec(self.mapToGlobal(e.pos()))
 
         if action is newImage: self.addItem()
+        if action is deleteItem: self.deleteItem(widget=self.list.currentItem())
 
     def resizeEvent(self, e: QResizeEvent):
         
@@ -219,10 +226,65 @@ class OverlayItemsWidget(OverlayWidget):
         self.layout().setContentsMargins(self.MARGINS)
         self.layout().setSpacing(self.SPACING)
 
-    def addItem(self, item: OverlayItem = None):
+    def addItem(self, proxy: OverlayItemProxy = None):
 
-        widget = QListWidgetItem('Image')
-        if item is not None: widget = QListWidgetItem(item.name)
-
+        widget = OverlayListWidgetItem(self, 'Image')
         self.list.addItem(widget)
-        if item is None: self.itemAdded.emit(widget)
+
+        if proxy is None: self.itemAdded.emit(widget)
+        else: proxy.widget = widget
+
+    def deleteItem(self, proxy: OverlayItemProxy = None, widget: OverlayListWidgetItem = None):
+
+        if proxy is not None: self.list.takeItem(self.list.row(proxy.widget))
+        elif widget is not None: self.itemDeleted.emit(self.list.takeItem(self.list.row(widget)))
+
+class OverlayItemPropertiesWidget(OverlayWidget):
+
+    # Constants
+    MARGINS = QMargins(0, 0, 0, 0)
+    SPACING = 0
+
+    # Children Constants
+    LABEL_HEIGHT = 30
+    CHILD_MARGINS = QMargins(5, 5, 5, 5)
+
+    def __init__(self, parent: QWidget):
+
+        super().__init__(parent)
+        QGridLayout(self)
+
+        self.label = QLabel('Properties')
+        self.xEdit = QLineEdit()
+        self.yEdit = QLineEdit()
+        self.wEdit = QLineEdit()
+        self.hEdit = QLineEdit()
+        self.sourceEdit = QPushButton()
+
+        self.sourceEdit.clicked.connect(self.openFileBrowser)
+
+        self.layout().addWidget(self.label, 0, 0, 1, 4)
+        self.layout().addWidget(QLabel('X:'), 1, 0)
+        self.layout().addWidget(self.xEdit, 1, 1)
+        self.layout().addWidget(QLabel('Y:'), 1, 2)
+        self.layout().addWidget(self.yEdit, 1, 3)
+        self.layout().addWidget(QLabel('W:'), 2, 0)
+        self.layout().addWidget(self.wEdit, 2, 1)
+        self.layout().addWidget(QLabel('H:'), 2, 2)
+        self.layout().addWidget(self.hEdit, 2, 3)
+        self.layout().addWidget(QLabel('Source:'), 3, 0, 1, 1)
+        self.layout().addWidget(self.sourceEdit, 3, 1, 1, 3)
+
+    def openFileBrowser(self, _):
+
+        fname, _ = QFileDialog.getOpenFileName(filter='Images (*.jpg, *.png)')
+        self.sourceEdit.setText(fname)
+
+    def stylize(self):
+
+        self.setStyleSheet(Style.OverlayItemsWidget)
+
+        # Label
+        self.label.setFixedHeight(self.LABEL_HEIGHT)
+        self.label.setContentsMargins(self.CHILD_MARGINS)
+

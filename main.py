@@ -1,16 +1,18 @@
 import sys
-from typing import List
+from typing import Dict, List
 
 from Globals import Style
-from Widgets import OverlayItem, OverlayItemsWidget, OverlayPreviewWidget
+from Items import OverlayGraphicsItem, OverlayListWidgetItem
+from Models import OverlayItemProxy
+from Widgets import OverlayItemsWidget, OverlayPreviewWidget
 
-from PySide6.QtCore import QObject, Qt, Slot
-from PySide6.QtWidgets import QApplication, QGraphicsItem, QHBoxLayout, QListWidgetItem, QMainWindow, QSplitter, QWidget
+from PySide6.QtCore import Qt, Slot
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QSplitter, QWidget
 from PySide6.QtGui import QAction
 
 class ElayvateWindow(QMainWindow):
     
-    items: List[OverlayItem] = []
+    items: List[OverlayItemProxy] = []
 
     def __init__(self):
         
@@ -94,36 +96,86 @@ class ElayvateWindow(QMainWindow):
         
         self.itemsFrame = OverlayItemsWidget(self.centralWidget())
 
-        self.itemsFrame.itemAdded.connect(self.onItemAdded)
+        self.itemsFrame.itemAdded.connect(self.onListItemAdded)
+        self.itemsFrame.itemDeleted.connect(self.onListItemDeleted)
         self.splitter.addWidget(self.itemsFrame)
 
     def createOverlayBox(self):
 
         self.overlayFrame = OverlayPreviewWidget(self.centralWidget())
 
-        self.overlayFrame.itemAdded.connect(self.onItemAdded)
+        self.overlayFrame.itemAdded.connect(self.onSceneItemAdded)
+        self.overlayFrame.itemDeleted.connect(self.onSceneItemDeleted)
         self.splitter.addWidget(self.overlayFrame)
 
-    @Slot(QObject)
-    def onItemAdded(self, object: QObject):
-        
-        item = OverlayItem()
-        
-        if isinstance(object, QGraphicsItem):
-            
-             item.x = object.x()
-             item.y = object.y()
-             item.width = object.boundingRect().width()
-             item.height = object.boundingRect().height()
-             
-             self.itemsFrame.addItem(item)
+    def getProxy(self, object):
 
-        elif isinstance(object, QListWidgetItem): 
-            
-            item.name = object.text()
-            self.overlayFrame.addItem(item)
+        for i, proxy in enumerate(self.items):
 
-        self.items.append(item)
+            if proxy.widget is object \
+                or proxy.graphics is object \
+                or proxy.item is object: return i, proxy
+
+        return -1, None
+
+    @Slot(OverlayGraphicsItem)
+    def onSceneItemAdded(self, object: OverlayGraphicsItem):
+        
+        proxy = OverlayItemProxy()
+        proxy.item.x = object.x()
+        proxy.item.y = object.y()
+        proxy.item.width = object.boundingRect().width()
+        proxy.item.height = object.boundingRect().height()
+        proxy.graphics = object
+
+        self.itemsFrame.addItem(proxy=proxy)
+        self.items.append(proxy)
+
+    @Slot(OverlayListWidgetItem)
+    def onListItemAdded(self, object: OverlayListWidgetItem):
+        
+        proxy = OverlayItemProxy()
+        proxy.item.name = object.text()
+        proxy.widget = object 
+
+        self.overlayFrame.addItem(proxy=proxy)
+        self.items.append(proxy)
+
+    @Slot(OverlayGraphicsItem)
+    def onSceneItemDeleted(self, object: OverlayGraphicsItem):
+
+        _, proxy = self.getProxy(object)
+        if proxy is None: return 
+        
+        self.itemsFrame.deleteItem(proxy=proxy)
+        self.items.remove(proxy)
+
+    @Slot(OverlayListWidgetItem)
+    def onListItemDeleted(self, object: OverlayListWidgetItem):
+
+        _, proxy = self.getProxy(object)
+        if proxy is None: return 
+        
+        self.overlayFrame.deleteItem(proxy=proxy)
+        self.items.remove(proxy)
+
+    @Slot(OverlayGraphicsItem)
+    def onSceneItemChanged(self, object: OverlayGraphicsItem):
+
+       i, proxy = self.getProxy(object)
+       if proxy is None: return 
+
+       self.itemsFrame.renameItem(proxy=proxy)
+       self.items[i] = proxy 
+
+    @Slot(OverlayListWidgetItem)
+    def onListItemChanged(self, object: OverlayListWidgetItem):
+
+        i, proxy = self.getProxy(object)
+        if proxy is None: return 
+        
+        proxy.item.name = object.text()
+        self.items[i] = proxy
 
 
 if __name__ == '__main__':
