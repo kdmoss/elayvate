@@ -1,7 +1,7 @@
 
 from Globals import Colors, Math
 
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFocusEvent, QKeyEvent
 from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneContextMenuEvent, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent, QListWidgetItem, QMenu, QWidget
 from PySide6.QtCore import Qt
 
@@ -24,6 +24,14 @@ class OverlayGraphicsItem(QGraphicsRectItem):
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.parent = parent
         self.isDragging = False
+
+    def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
+
+        if change == QGraphicsItem.ItemSelectedChange:
+
+            self.parent.selectItem(value, graphics=self)
+
+        return super().itemChange(change, value)
 
     def hoverEnterEvent(self, event: QGraphicsSceneHoverEvent):
         
@@ -54,6 +62,7 @@ class OverlayGraphicsItem(QGraphicsRectItem):
 
             self.isDragging = False
             self.setPos(Math.gridSnap(self.x(), self.y(), self.parent.cellSize))
+            self.parent.updateItem(graphics=self)
 
         QApplication.instance().setOverrideCursor(Qt.CursorShape.OpenHandCursor)
         super().mouseReleaseEvent(event)
@@ -75,6 +84,7 @@ class OverlayGraphicsItem(QGraphicsRectItem):
         deleteItem = contextMenu.addAction('Delete')
         renameItem = contextMenu.addAction('Rename')
 
+        deleteItem.setShortcut('Delete')
         action = contextMenu.exec(event.screenPos())
         
         if action is deleteItem: self.parent.deleteItem(graphics=self)

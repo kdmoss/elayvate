@@ -2,16 +2,29 @@ from Items import OverlayGraphicsItem, OverlayListWidgetItem, ScreenPreviewItem
 from Globals import Colors, Math, Style
 from Models import OverlayItem, OverlayItemProxy
 
-from PySide6.QtCore import QEvent, QMargins, QPoint, QSize, Qt, Signal, Slot
-from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import QEvent, QMargins, QPoint, QRect, QSize, Qt, Signal, Slot
+from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QPushButton, QSplitter, QVBoxLayout, QWidget
 from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent, QTextBlock
+
+class EGraphicsView(QGraphicsView):
+
+        def __init__(self, parent: QWidget):
+
+            super().__init__(parent)
+            self.setScene(QGraphicsScene())
+            self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+            self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.setFrameShape(QFrame.Shape.NoFrame)
 
 class OverlayWidget(QWidget):
 
     # Signals
     itemAdded = Signal(object)
     itemDeleted = Signal(object)
-    itemRenamed = Signal(object)
+    itemChanged = Signal(object)
+    itemSelected = Signal(object, bool)
 
     def __init__(self, parent: QWidget):
 
@@ -27,13 +40,7 @@ class OverlayPreviewWidget(OverlayWidget):
         super().__init__(parent)
 
         self.isMoving = False
-        self.scene = QGraphicsScene()
-        self.view = QGraphicsView(self.scene, self)
-        self.view.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self.view.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.view.setFrameShape(QFrame.Shape.NoFrame)
+        self.view = EGraphicsView(self)
 
         self.view.viewport().installEventFilter(self)
         self.setStyleSheet('background: {}'.format(Colors.MenuDark))
@@ -57,10 +64,11 @@ class OverlayPreviewWidget(OverlayWidget):
         super().keyPressEvent(e)
 
         # Zoom
-        if e.modifiers() is Qt.KeyboardModifier.ControlModifier:
+        if e.modifiers() == Qt.KeyboardModifier.ControlModifier:
 
             if   e.key() == Qt.Key.Key_Equal: self.zoomIn()
             elif e.key() == Qt.Key.Key_Minus: self.zoomOut()
+            elif e.key() == Qt.Key.Key_0:     self.fitScreen()
 
     def contextMenuEvent(self, e: QContextMenuEvent):
         
@@ -74,6 +82,11 @@ class OverlayPreviewWidget(OverlayWidget):
         zoomIn = viewMenu.addAction('Zoom In')
         zoomOut = viewMenu.addAction('Zoom Out')
         fillWindow = viewMenu.addAction('Fill Window')
+
+        zoomIn.setShortcut('Ctrl++')
+        zoomOut.setShortcut('Ctrl+-')
+        fillWindow.setShortcut('Ctrl+0')
+        
         action = contextMenu.exec(self.mapToGlobal(e.pos()))
         
         if action is newImage: self.addItem(position=e.pos())
@@ -120,7 +133,7 @@ class OverlayPreviewWidget(OverlayWidget):
 
         self.cellSize = Math.toCellSize(width + height)
         self.screenPreviewItem = ScreenPreviewItem(width, height, self.cellSize)
-        self.scene.addItem(self.screenPreviewItem)
+        self.view.scene().addItem(self.screenPreviewItem)
 
     def zoomIn(self):
 
@@ -148,29 +161,30 @@ class OverlayPreviewWidget(OverlayWidget):
             position = Math.gridSnap(position.x(), position.y(), self.cellSize)
             preview.setPos(position)
 
-        self.scene.addItem(preview)
+        self.view.scene().addItem(preview)
         if proxy is None: self.itemAdded.emit(preview)
         else: proxy.graphics = preview
 
-    def deleteItem(self, proxy: OverlayItemProxy = None, graphics: QGraphicsRectItem = None):
+    def deleteItem(self, proxy: OverlayItemProxy = None, graphics: OverlayGraphicsItem = None):
 
         if graphics is not None: 
             
-            self.scene.removeItem(graphics)
+            self.view.scene().removeItem(graphics)
             self.itemDeleted.emit(graphics)
             return 
 
-        if proxy is not None: self.scene.removeItem(proxy.graphics)
+        if proxy is not None: self.view.scene().removeItem(proxy.graphics)
 
-class OverlayItemsWidget(OverlayWidget):
-        
-    # Constants
-    MARGINS = QMargins(0, 0, 0, 0)
-    SPACING = 0
+    def updateItem(self, proxy: OverlayItemProxy = None, graphics: OverlayGraphicsItem = None):
 
-    # Children Constants
-    LABEL_HEIGHT = 30
-    CHILD_MARGINS = QMargins(5, 5, 5, 5)
+        if graphics is not None: self.itemChanged.emit(graphics)
+
+    def selectItem(self, selected: bool, proxy: OverlayItemProxy = None, graphics: OverlayGraphicsItem = None):
+
+        if graphics is not None: self.itemSelected.emit(graphics, selected)
+        elif proxy is not None: proxy.graphics.setSelected(selected)
+
+class OverlayItemListWidget(OverlayWidget):
 
     def __init__(self, parent: QWidget):
     
@@ -179,11 +193,11 @@ class OverlayItemsWidget(OverlayWidget):
 
         self.label = QLabel('Items')
         self.list = QListWidget()
-        self.props = OverlayItemPropertiesWidget(self)
+
+        self.list.currentItemChanged.connect(self.onCurrentItemChanged)
 
         self.layout().addWidget(self.label)
         self.layout().addWidget(self.list)
-        self.layout().addWidget(self.props)
         self.stylize()
 
     def contextMenuEvent(self, e: QContextMenuEvent):
@@ -197,6 +211,8 @@ class OverlayItemsWidget(OverlayWidget):
 
         deleteItem = contextMenu.addAction('Delete')
         renameItem = contextMenu.addAction('Rename')
+
+        deleteItem.setShortcut('Delete')
 
         if self.list.currentItem() is None: 
 
@@ -215,16 +231,16 @@ class OverlayItemsWidget(OverlayWidget):
 
     def stylize(self):
 
-        self.setStyleSheet(Style.OverlayItemsWidget)
+        self.setStyleSheet(Style.OverlayItemListWidget)
+        self.layout().setContentsMargins(Style.NoMargins)
+        self.layout().setSpacing(0)
 
         # Label
-        self.label.setFixedHeight(self.LABEL_HEIGHT)
-        self.label.setContentsMargins(self.CHILD_MARGINS)
+        self.label.setStyleSheet(Style.OverlayItemBoxTitle)
+        self.label.setContentsMargins(Style.SmallMargins)
 
         # List
-        self.list.setContentsMargins(self.CHILD_MARGINS)
-        self.layout().setContentsMargins(self.MARGINS)
-        self.layout().setSpacing(self.SPACING)
+        self.list.setContentsMargins(Style.SmallMargins)
 
     def addItem(self, proxy: OverlayItemProxy = None):
 
@@ -239,41 +255,50 @@ class OverlayItemsWidget(OverlayWidget):
         if proxy is not None: self.list.takeItem(self.list.row(proxy.widget))
         elif widget is not None: self.itemDeleted.emit(self.list.takeItem(self.list.row(widget)))
 
+
+    def selectItem(self, selected: bool, proxy: OverlayItemProxy = None, widget: OverlayListWidgetItem = None):
+
+        if widget is not None: self.itemSelected.emit(widget, selected)
+        elif proxy is not None: 
+            
+            if selected: self.list.setCurrentItem(proxy.widget)
+            else: self.list.clearSelection()
+
+    def onCurrentItemChanged(self, current: OverlayListWidgetItem, previous: OverlayListWidgetItem):
+
+        if previous is not None: self.selectItem(False, widget=previous)
+        if current is not None: self.selectItem(True, widget=current)
+        
 class OverlayItemPropertiesWidget(OverlayWidget):
-
-    # Constants
-    MARGINS = QMargins(0, 0, 0, 0)
-    SPACING = 0
-
-    # Children Constants
-    LABEL_HEIGHT = 30
-    CHILD_MARGINS = QMargins(5, 5, 5, 5)
 
     def __init__(self, parent: QWidget):
 
         super().__init__(parent)
         QGridLayout(self)
 
+        self.item = None 
         self.label = QLabel('Properties')
         self.xEdit = QLineEdit()
         self.yEdit = QLineEdit()
         self.wEdit = QLineEdit()
         self.hEdit = QLineEdit()
-        self.sourceEdit = QPushButton()
+        self.sourceEdit = QLineEdit()
 
-        self.sourceEdit.clicked.connect(self.openFileBrowser)
+        self.sourceEdit.setReadOnly(True)
 
-        self.layout().addWidget(self.label, 0, 0, 1, 4)
-        self.layout().addWidget(QLabel('X:'), 1, 0)
-        self.layout().addWidget(self.xEdit, 1, 1)
-        self.layout().addWidget(QLabel('Y:'), 1, 2)
-        self.layout().addWidget(self.yEdit, 1, 3)
-        self.layout().addWidget(QLabel('W:'), 2, 0)
-        self.layout().addWidget(self.wEdit, 2, 1)
-        self.layout().addWidget(QLabel('H:'), 2, 2)
-        self.layout().addWidget(self.hEdit, 2, 3)
+        self.layout().addWidget(self.label,        0, 0, 1, 4)
+        self.layout().addWidget(QLabel('X:'),      1, 0, 1, 1)
+        self.layout().addWidget(self.xEdit,        1, 1, 1, 1)
+        self.layout().addWidget(QLabel('Y:'),      1, 2, 1, 1)
+        self.layout().addWidget(self.yEdit,        1, 3, 1, 1)
+        self.layout().addWidget(QLabel('W:'),      2, 0, 1, 1)
+        self.layout().addWidget(self.wEdit,        2, 1, 1, 1)
+        self.layout().addWidget(QLabel('H:'),      2, 2, 1, 1)
+        self.layout().addWidget(self.hEdit,        2, 3, 1, 1)
         self.layout().addWidget(QLabel('Source:'), 3, 0, 1, 1)
-        self.layout().addWidget(self.sourceEdit, 3, 1, 1, 3)
+        self.layout().addWidget(self.sourceEdit,   3, 1, 1, 3)
+        self.layout().setRowStretch(4, 1)
+        self.stylize()
 
     def openFileBrowser(self, _):
 
@@ -282,9 +307,64 @@ class OverlayItemPropertiesWidget(OverlayWidget):
 
     def stylize(self):
 
-        self.setStyleSheet(Style.OverlayItemsWidget)
+        self.setAutoFillBackground(True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet(Style.OverlayItemPropertiesWidget)
+        self.layout().setContentsMargins(Style.NoMargins)
+        self.layout().setSpacing(5)
 
         # Label
-        self.label.setFixedHeight(self.LABEL_HEIGHT)
-        self.label.setContentsMargins(self.CHILD_MARGINS)
+        self.label.setStyleSheet(Style.OverlayItemBoxTitle)
+        self.label.setContentsMargins(Style.SmallMargins)
+
+    def blockAllSignals(self, block: bool):
+
+        self.xEdit.blockSignals(block)
+        self.yEdit.blockSignals(block)
+        self.wEdit.blockSignals(block)
+        self.yEdit.blockSignals(block)
+
+    def setItem(self, proxy: OverlayItemProxy):
+
+        self.item = proxy 
+        if proxy is None: 
+            
+            self.xEdit.setText('')
+            self.yEdit.setText('')
+            self.wEdit.setText('')
+            self.hEdit.setText('')
+            self.sourceEdit.setText('')
+
+            self.xEdit.textChanged.disconnect()
+            self.yEdit.textChanged.disconnect()
+            self.wEdit.textChanged.disconnect()
+            self.hEdit.textChanged.disconnect()
+            return 
+
+        self.blockAllSignals(True)
+        self.xEdit.setText(str(proxy.graphics.x()))
+        self.yEdit.setText(str(proxy.graphics.y()))
+        self.wEdit.setText(str(proxy.graphics.boundingRect().width()))
+        self.hEdit.setText(str(proxy.graphics.boundingRect().height()))
+        self.sourceEdit.setText(proxy.widget.text())
+        self.blockAllSignals(False)
+
+        self.xEdit.textChanged.connect(self.updateItem)
+        self.yEdit.textChanged.connect(self.updateItem)
+        self.wEdit.textChanged.connect(self.updateItem)
+        self.hEdit.textChanged.connect(self.updateItem)
+
+    def updateItem(self):
+
+        if self.item is None: return
+
+
+        self.item.graphics.setRect(QRect(
+
+            float(self.xEdit.text()),
+            float(self.yEdit.text()),
+            float(self.wEdit.text()),
+            float(self.hEdit.text())
+        ))
+
 

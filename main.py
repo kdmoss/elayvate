@@ -4,41 +4,66 @@ from typing import Dict, List
 from Globals import Style
 from Items import OverlayGraphicsItem, OverlayListWidgetItem
 from Models import OverlayItemProxy
-from Widgets import OverlayItemsWidget, OverlayPreviewWidget
+from Widgets import EGraphicsView, OverlayItemListWidget, OverlayItemPropertiesWidget, OverlayPreviewWidget
 
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QSplitter, QWidget
-from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QApplication, QGraphicsView, QHBoxLayout, QLayout, QMainWindow, QSplitter, QWidget
+from PySide6.QtGui import QAction, QCloseEvent
 
-class ElayvateWindow(QMainWindow):
-    
-    items: List[OverlayItemProxy] = []
+class EWindow(QMainWindow):
 
     def __init__(self):
-        
+
         super().__init__()
         self.setCentralWidget(QWidget(self))
         QHBoxLayout(self.centralWidget())
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+
+    def innerLayout(self) -> QLayout:
+        
+        return self.centralWidget().layout()
+
+class ElayvateOverlayWindow(EWindow):
+
+    def __init__(self):
+
+        super().__init__()
+        
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint |Qt.X11BypassWindowManagerHint)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WA_AlwaysStackOnTop, True)
+
+        view = EGraphicsView(self.centralWidget())
+        view.setStyleSheet('background: transparent')
+        self.innerLayout().addWidget(view)
+
+class ElayvateWindow(EWindow):
+    
+    items: List[OverlayItemProxy] = []
+
+    def __init__(self, overlay: ElayvateOverlayWindow):
+        
+        super().__init__()
+        self.overlayWindow = overlay
+        self.hSplitter = QSplitter(Qt.Orientation.Horizontal)
+        self.vSplitter = QSplitter(Qt.Orientation.Vertical)
 
         self.setWindowTitle('Elayvate')
         self.createMenuBar()
         self.createItemsBox()
         self.createOverlayBox()
-        self.innerLayout().setContentsMargins(0, 0, 0, 0)
+
+        self.hSplitter.setSizes([5, 500])
+        self.innerLayout().setContentsMargins(Style.NoMargins)
         self.innerLayout().setSpacing(0)
-        self.innerLayout().addWidget(self.splitter)
+        self.innerLayout().addWidget(self.hSplitter)
+        
         self.resize(
             
             self.screen().size().width() // 3, 
             self.screen().size().height() // 3
         )
         self.setMinimumSize(300, 100)
-        self.splitter.setSizes([5, 500])
-
-    def innerLayout(self):
-
-        return self.centralWidget().layout()
 
     def createMenuBar(self):
         
@@ -94,11 +119,16 @@ class ElayvateWindow(QMainWindow):
 
     def createItemsBox(self):
         
-        self.itemsFrame = OverlayItemsWidget(self.centralWidget())
+        self.itemList = OverlayItemListWidget(self.centralWidget())
+        self.itemProps = OverlayItemPropertiesWidget(self.centralWidget())
 
-        self.itemsFrame.itemAdded.connect(self.onListItemAdded)
-        self.itemsFrame.itemDeleted.connect(self.onListItemDeleted)
-        self.splitter.addWidget(self.itemsFrame)
+        self.itemList.itemAdded.connect(self.onListItemAdded)
+        self.itemList.itemDeleted.connect(self.onListItemDeleted)
+        self.itemList.itemSelected.connect(self.onListItemSelected)
+
+        self.vSplitter.addWidget(self.itemList)
+        self.vSplitter.addWidget(self.itemProps)
+        self.hSplitter.addWidget(self.vSplitter)
 
     def createOverlayBox(self):
 
@@ -106,7 +136,10 @@ class ElayvateWindow(QMainWindow):
 
         self.overlayFrame.itemAdded.connect(self.onSceneItemAdded)
         self.overlayFrame.itemDeleted.connect(self.onSceneItemDeleted)
-        self.splitter.addWidget(self.overlayFrame)
+        self.overlayFrame.itemChanged.connect(self.onSceneItemChanged)
+        self.overlayFrame.itemSelected.connect(self.onSceneItemSelected)
+
+        self.hSplitter.addWidget(self.overlayFrame)
 
     def getProxy(self, object):
 
@@ -128,7 +161,7 @@ class ElayvateWindow(QMainWindow):
         proxy.item.height = object.boundingRect().height()
         proxy.graphics = object
 
-        self.itemsFrame.addItem(proxy=proxy)
+        self.itemList.addItem(proxy=proxy)
         self.items.append(proxy)
 
     @Slot(OverlayListWidgetItem)
@@ -147,7 +180,7 @@ class ElayvateWindow(QMainWindow):
         _, proxy = self.getProxy(object)
         if proxy is None: return 
         
-        self.itemsFrame.deleteItem(proxy=proxy)
+        self.itemList.deleteItem(proxy=proxy)
         self.items.remove(proxy)
 
     @Slot(OverlayListWidgetItem)
@@ -162,11 +195,11 @@ class ElayvateWindow(QMainWindow):
     @Slot(OverlayGraphicsItem)
     def onSceneItemChanged(self, object: OverlayGraphicsItem):
 
-       i, proxy = self.getProxy(object)
-       if proxy is None: return 
-
-       self.itemsFrame.renameItem(proxy=proxy)
-       self.items[i] = proxy 
+        i, proxy = self.getProxy(object)
+        if proxy is None: return 
+        
+        self.itemProps.setItem(proxy=proxy)
+        self.items[i] = proxy
 
     @Slot(OverlayListWidgetItem)
     def onListItemChanged(self, object: OverlayListWidgetItem):
@@ -174,14 +207,44 @@ class ElayvateWindow(QMainWindow):
         i, proxy = self.getProxy(object)
         if proxy is None: return 
         
-        proxy.item.name = object.text()
+        self.itemProps.setItem(proxy=proxy)
         self.items[i] = proxy
+
+    @Slot(OverlayGraphicsItem, bool)
+    def onSceneItemSelected(self, object: OverlayGraphicsItem, selected: bool):
+
+        i, proxy = self.getProxy(object)
+        if proxy is None: return 
+
+        if selected: self.itemProps.setItem(proxy=proxy)
+        else: self.itemProps.setItem(proxy=None)
+
+        self.itemList.selectItem(selected, proxy=proxy)
+        self.items[i] = proxy 
+
+    @Slot(OverlayListWidgetItem, bool)
+    def onListItemSelected(self, object: OverlayListWidgetItem, selected: bool):
+
+        i, proxy = self.getProxy(object)
+        if proxy is None: return 
+        
+        if selected: self.itemProps.setItem(proxy=proxy)
+        else: self.itemProps.setItem(proxy=None)
+
+        self.overlayFrame.selectItem(selected, proxy=proxy)
+        self.items[i] = proxy
+
+    def closeEvent(self, event:QCloseEvent):
+        
+        #overlay.showFullScreen()
+        super().closeEvent(event)
 
 
 if __name__ == '__main__':
 
     app = QApplication([])
-    window = ElayvateWindow()
+    overlay = ElayvateOverlayWindow()
+    window = ElayvateWindow(overlay=overlay)
     app.setStyleSheet(Style.QApplication)
     window.show()
     sys.exit(app.exec())

@@ -1,5 +1,5 @@
 from typing import Dict
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QMargins, QPoint
 
 
 class Style:
@@ -55,27 +55,20 @@ class Style:
             color: gray;
         }
 
-        QSplitter::handle:horizontal {
+        QSplitter::handle:horizontal,
+        QSplitter::handle:vertical {
 
             background: #252526;
+            height: 0px;
         }
 
         QSplitter::handle:pressed {
 
             background: #007fd4;
-            outline: 10px dotted #fff;
         }
     '''
 
-    OverlayItemsWidget = '''
-
-        QLabel {
-
-            background-color: #252526; 
-            color: white; 
-            font-weight: bold; 
-            border-bottom: 1px solid #333333;
-        }
+    OverlayItemListWidget = '''
 
         QListView {
 
@@ -88,6 +81,7 @@ class Style:
         QListView::item {
 
             color: #fff;
+            height: 20px
         }
 
         QListView::item:hover {
@@ -98,7 +92,7 @@ class Style:
         QListView::item:selected,
         QListView::item:alternate {
 
-            border: 1px solid #007fd4;
+            border: 1px solid #094771;
         }
 
         QListView::item:selected:!active {
@@ -111,6 +105,45 @@ class Style:
             background: #094771;
         }        
     '''
+
+    OverlayItemPropertiesWidget = '''
+
+        QObject {
+
+            background-color: #252526;
+            height: 20px;
+        }
+
+        QLabel {
+
+            color: #fff; 
+            padding-left: 5px;
+        }    
+
+        QLineEdit {
+
+            margin-right: 5px;
+            border: 1px solid #505050;
+            color: #fff;
+        }
+
+        QLineEdit:focus {
+
+            border: 1px solid #094771;
+        }
+    '''
+
+    OverlayItemBoxTitle = '''
+
+        height: 30px;
+        background-color: #505050; 
+        color: white; 
+        font-weight: bold; 
+    '''
+
+    # Constants
+    NoMargins = QMargins(0, 0, 0, 0)
+    SmallMargins = QMargins(5, 5, 5, 5)
 
 class Colors:
 
