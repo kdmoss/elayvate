@@ -262,7 +262,7 @@ class OverlayItemListWidget(OverlayWidget):
         elif proxy is not None: 
             
             if selected: self.list.setCurrentItem(proxy.widget)
-            else: self.list.clearSelection()
+            else: self.list.setCurrentItem(None)
 
     def onCurrentItemChanged(self, current: OverlayListWidgetItem, previous: OverlayListWidgetItem):
 
@@ -324,47 +324,72 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         self.wEdit.blockSignals(block)
         self.yEdit.blockSignals(block)
 
+    def clearLineEdits(self):
+
+        self.xEdit.setText('')
+        self.yEdit.setText('')
+        self.wEdit.setText('')
+        self.hEdit.setText('')
+        self.sourceEdit.setText('')
+
+    def enableLineEdits(self, enable: bool):
+
+        self.xEdit.setEnabled(enable)
+        self.yEdit.setEnabled(enable)
+        self.wEdit.setEnabled(enable)
+        self.hEdit.setEnabled(enable)
+        self.sourceEdit.setEnabled(enable)
+
+    def disconnectLineEdits(self):
+
+        try:
+
+            self.xEdit.editingFinished.disconnect()
+            self.yEdit.editingFinished.disconnect()
+            self.wEdit.editingFinished.disconnect()
+            self.hEdit.editingFinished.disconnect()
+        
+        except: pass
+
+    def connectLineEdits(self, callback):
+
+        self.xEdit.editingFinished.connect(callback)
+        self.yEdit.editingFinished.connect(callback)
+        self.wEdit.editingFinished.connect(callback)
+        self.hEdit.editingFinished.connect(callback)
+
+    def linkLineEdits(self):
+
+        self.blockAllSignals(True)
+        self.xEdit.setText(str(self.item.graphics.x()))
+        self.yEdit.setText(str(self.item.graphics.y()))
+        self.wEdit.setText(str(self.item.graphics.boundingRect().width()))
+        self.hEdit.setText(str(self.item.graphics.boundingRect().height()))
+        self.blockAllSignals(False)
+
     def setItem(self, proxy: OverlayItemProxy):
 
         self.item = proxy 
         if proxy is None: 
             
-            self.xEdit.setText('')
-            self.yEdit.setText('')
-            self.wEdit.setText('')
-            self.hEdit.setText('')
-            self.sourceEdit.setText('')
-
-            self.xEdit.textChanged.disconnect()
-            self.yEdit.textChanged.disconnect()
-            self.wEdit.textChanged.disconnect()
-            self.hEdit.textChanged.disconnect()
+            self.clearLineEdits()
+            self.disconnectLineEdits()
+            self.enableLineEdits(False)
             return 
 
-        self.blockAllSignals(True)
-        self.xEdit.setText(str(proxy.graphics.x()))
-        self.yEdit.setText(str(proxy.graphics.y()))
-        self.wEdit.setText(str(proxy.graphics.boundingRect().width()))
-        self.hEdit.setText(str(proxy.graphics.boundingRect().height()))
-        self.sourceEdit.setText(proxy.widget.text())
-        self.blockAllSignals(False)
-
-        self.xEdit.textChanged.connect(self.updateItem)
-        self.yEdit.textChanged.connect(self.updateItem)
-        self.wEdit.textChanged.connect(self.updateItem)
-        self.hEdit.textChanged.connect(self.updateItem)
+        self.linkLineEdits()
+        self.connectLineEdits(self.updateItem)
+        self.enableLineEdits(True)
 
     def updateItem(self):
 
         if self.item is None: return
 
-
-        self.item.graphics.setRect(QRect(
+        self.item.graphics.updateRect(
 
             float(self.xEdit.text()),
             float(self.yEdit.text()),
             float(self.wEdit.text()),
             float(self.hEdit.text())
-        ))
-
+        )
 

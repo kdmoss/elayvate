@@ -164,6 +164,10 @@ class Math:
         
         return QPoint(round(x / cell) * cell, round(y / cell) * cell)
 
+    def gridSnapSingle(n: int, cell: int):
+
+        return round(n / cell) * cell
+
     def clamp(n: int, floor: int, ceil: int):
 
         return max(floor, min(n, ceil))

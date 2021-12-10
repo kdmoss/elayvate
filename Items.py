@@ -3,7 +3,7 @@ from Globals import Colors, Math
 
 from PySide6.QtGui import QColor, QFocusEvent, QKeyEvent
 from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneContextMenuEvent, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent, QListWidgetItem, QMenu, QWidget
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, QRectF, Qt
 
 class OverlayListWidgetItem(QListWidgetItem):
 
@@ -22,6 +22,8 @@ class OverlayGraphicsItem(QGraphicsRectItem):
         self.setPen(Qt.PenStyle.NoPen)
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
+        self.setFlag(QGraphicsRectItem.ItemSendsGeometryChanges, True)
+        self.setFlag(QGraphicsRectItem.ItemSendsScenePositionChanges, True)
         self.parent = parent
         self.isDragging = False
 
@@ -67,6 +69,15 @@ class OverlayGraphicsItem(QGraphicsRectItem):
         QApplication.instance().setOverrideCursor(Qt.CursorShape.OpenHandCursor)
         super().mouseReleaseEvent(event)
 
+    def updateRect(self, x, y, width, height):
+
+        pos = Math.gridSnap(x, y, self.parent.cellSize)
+        size = Math.gridSnap(width, height, self.parent.cellSize)
+
+        self.setRect(0, 0, size.x(), size.y())
+        self.setPos(pos.x(), pos.y())
+        self.parent.updateItem(graphics=self)
+        
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
 
         if not self.isDragging: return 
@@ -74,8 +85,8 @@ class OverlayGraphicsItem(QGraphicsRectItem):
         goalX = event.scenePos().x() - event.lastScenePos().x() + self.scenePos().x()
         goalY = event.scenePos().y() - event.lastScenePos().y() + self.scenePos().y()
 
-        self.setX(Math.clamp(goalX, 0, self.parent.screenPreviewItem.width - self.boundingRect().width()))
-        self.setY(Math.clamp(goalY, 0, self.parent.screenPreviewItem.height - self.boundingRect().height()))
+        self.setX(Math.clamp(goalX, 0, self.parent.screenPreviewItem.width - self.rect().width()))
+        self.setY(Math.clamp(goalY, 0, self.parent.screenPreviewItem.height - self.rect().height()))
         super().mouseMoveEvent(event)
 
     def contextMenuEvent(self, event: QGraphicsSceneContextMenuEvent):
@@ -88,6 +99,14 @@ class OverlayGraphicsItem(QGraphicsRectItem):
         action = contextMenu.exec(event.screenPos())
         
         if action is deleteItem: self.parent.deleteItem(graphics=self)
+
+    def screenClamp(self, x, y, w, h) -> QPoint:
+
+        return QPoint(
+            
+            Math.clamp(x, 0, self.parent.screenPreviewItem.width - w), 
+            Math.clamp(y, 0, self.parent.screenPreviewItem.height - h)
+        )
 
 class ScreenPreviewItem(QGraphicsItemGroup):
 
