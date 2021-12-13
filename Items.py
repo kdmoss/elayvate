@@ -1,9 +1,10 @@
 
+from typing import Optional
 from Globals import Colors, Math
 
-from PySide6.QtGui import QColor, QFocusEvent, QKeyEvent
-from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneContextMenuEvent, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent, QListWidgetItem, QMenu, QWidget
-from PySide6.QtCore import QPoint, QRectF, Qt
+from PySide6.QtGui import QColor, QFocusEvent, QImage, QKeyEvent, QPainter
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneContextMenuEvent, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent, QListWidgetItem, QMenu, QStyleOptionGraphicsItem, QWidget
+from PySide6.QtCore import QPoint, QRectF, QSize, Qt
 
 class OverlayListWidgetItem(QListWidgetItem):
 
@@ -25,6 +26,8 @@ class OverlayGraphicsItem(QGraphicsRectItem):
         self.setFlag(QGraphicsRectItem.ItemSendsGeometryChanges, True)
         self.setFlag(QGraphicsRectItem.ItemSendsScenePositionChanges, True)
         self.parent = parent
+        self.image = None
+        self.source = ''
         self.isDragging = False
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value):
@@ -76,7 +79,30 @@ class OverlayGraphicsItem(QGraphicsRectItem):
 
         self.setRect(0, 0, size.x(), size.y())
         self.setPos(pos.x(), pos.y())
+        self.updateImage(self.source)
         self.parent.updateItem(graphics=self)
+
+    def updateImage(self, source):
+
+        if source == '': 
+
+            self.image = None
+            self.source = ''
+            return 
+
+        self.source = source
+        self.image = QImage(source)
+        self.image = self.image.scaled(
+
+            QSize(self.rect().width(), self.rect().height()), 
+            Qt.AspectRatioMode.IgnoreAspectRatio, 
+            Qt.TransformationMode.SmoothTransformation
+        )
+    
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: Optional[QWidget] = []) -> None:
+        
+        if self.image is not None: painter.drawImage(QPoint(0, 0), self.image)
+        else: super().paint(painter, option, widget=widget)
         
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
 

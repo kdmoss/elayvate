@@ -146,8 +146,7 @@ class ElayvateWindow(EWindow):
         for i, proxy in enumerate(self.items):
 
             if proxy.widget is object \
-                or proxy.graphics is object \
-                or proxy.item is object: return i, proxy
+                or proxy.graphics is object: return i, proxy
 
         return -1, None
 
@@ -155,10 +154,6 @@ class ElayvateWindow(EWindow):
     def onSceneItemAdded(self, object: OverlayGraphicsItem):
         
         proxy = OverlayItemProxy()
-        proxy.item.x = object.x()
-        proxy.item.y = object.y()
-        proxy.item.width = object.boundingRect().width()
-        proxy.item.height = object.boundingRect().height()
         proxy.graphics = object
 
         self.itemList.addItem(proxy=proxy)
@@ -168,7 +163,6 @@ class ElayvateWindow(EWindow):
     def onListItemAdded(self, object: OverlayListWidgetItem):
         
         proxy = OverlayItemProxy()
-        proxy.item.name = object.text()
         proxy.widget = object 
 
         self.overlayFrame.addItem(proxy=proxy)

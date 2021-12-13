@@ -158,7 +158,7 @@ class Math:
 
     def toCellSize(n):
 
-        return int(str(n)[0]) * 10
+        return int(str(n)[0]) * 5
 
     def gridSnap(x: int, y: int, cell: int):
         

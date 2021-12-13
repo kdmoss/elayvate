@@ -16,13 +16,12 @@ class OverlayItem():
 
 class OverlayItemProxy():
 
-    selected: bool
     widget: OverlayListWidgetItem
     graphics: OverlayGraphicsItem
 
     def __init__(self):
 
         self.selected = False
-        self.item = OverlayItem()
         self.widget = None
         self.graphics = None
+        self.source = ''

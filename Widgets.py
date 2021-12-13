@@ -2,9 +2,9 @@ from Items import OverlayGraphicsItem, OverlayListWidgetItem, ScreenPreviewItem
 from Globals import Colors, Math, Style
 from Models import OverlayItem, OverlayItemProxy
 
-from PySide6.QtCore import QEvent, QMargins, QPoint, QRect, QSize, Qt, Signal, Slot
+from PySide6.QtCore import Property, QEvent, QMargins, QPoint, QRect, QSize, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QPushButton, QSplitter, QVBoxLayout, QWidget
-from PySide6.QtGui import QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent, QTextBlock
+from PySide6.QtGui import QContextMenuEvent, QFocusEvent, QKeyEvent, QMouseEvent, QResizeEvent, QTextBlock
 
 class EGraphicsView(QGraphicsView):
 
@@ -89,10 +89,10 @@ class OverlayPreviewWidget(OverlayWidget):
         
         action = contextMenu.exec(self.mapToGlobal(e.pos()))
         
-        if action is newImage: self.addItem(position=e.pos())
-        if action is zoomIn: self.zoomIn()
-        if action is zoomOut: self.zoomOut()
-        if action is fillWindow: self.fitScreen()
+        if   action is newImage: self.addItem(position=e.pos())
+        elif action is zoomIn: self.zoomIn()
+        elif action is zoomOut: self.zoomOut()
+        elif action is fillWindow: self.fitScreen()
 
     def mousePressEvent(self, e: QMouseEvent):
         
@@ -128,8 +128,8 @@ class OverlayPreviewWidget(OverlayWidget):
 
     def drawScreenPreview(self):
 
-        width = self.screen().size().width() // 2
-        height = self.screen().size().height() // 2
+        width = self.screen().size().width()
+        height = self.screen().size().height()
 
         self.cellSize = Math.toCellSize(width + height)
         self.screenPreviewItem = ScreenPreviewItem(width, height, self.cellSize)
@@ -153,7 +153,7 @@ class OverlayPreviewWidget(OverlayWidget):
 
     def addItem(self, proxy: OverlayItemProxy = None, position: QPoint = None):
 
-        preview = OverlayGraphicsItem(self, 0, 0, self.cellSize * 4, self.cellSize * 4)
+        preview = OverlayGraphicsItem(self, 0, 0, self.cellSize * 10, self.cellSize * 10)
 
         if position is not None: 
 
@@ -221,8 +221,8 @@ class OverlayItemListWidget(OverlayWidget):
 
         action = contextMenu.exec(self.mapToGlobal(e.pos()))
 
-        if action is newImage: self.addItem()
-        if action is deleteItem: self.deleteItem(widget=self.list.currentItem())
+        if   action is newImage: self.addItem()
+        elif action is deleteItem: self.deleteItem(widget=self.list.currentItem())
 
     def resizeEvent(self, e: QResizeEvent):
         
@@ -268,8 +268,45 @@ class OverlayItemListWidget(OverlayWidget):
 
         if previous is not None: self.selectItem(False, widget=previous)
         if current is not None: self.selectItem(True, widget=current)
+
+class PropertyLineEdit(QLineEdit):
+    
+    def __init__(self, value = ''):
+
+        super().__init__(value)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+
+class BrowseLineEdit(QLineEdit):
+    
+    browse = Signal(QEvent)
+
+    def __init__(self, value = ''):
+
+        super().__init__(value)
+        self.setToolTip('Left-click to change the source. \nRight-click for more actions.')
+
+    def mousePressEvent(self, event: QMouseEvent):
+
+        if event.button() is Qt.MouseButton.LeftButton: self.browse.emit(event)
+        super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         
+        contextMenu = QMenu()
+        copy = contextMenu.addAction('Copy')
+
+        copy.setShortcut('Ctrl+C')
+        contextMenu.addSeparator()
+
+        browse = contextMenu.addAction('Browse...')
+        action = contextMenu.exec(self.mapToGlobal(event.pos()))
+
+        if   action is browse: self.browse.emit(event)
+        elif action is copy: QApplication.clipboard().setText(self.text())
+
 class OverlayItemPropertiesWidget(OverlayWidget):
+
+    currentEvent = None
 
     def __init__(self, parent: QWidget):
 
@@ -278,13 +315,13 @@ class OverlayItemPropertiesWidget(OverlayWidget):
 
         self.item = None 
         self.label = QLabel('Properties')
-        self.xEdit = QLineEdit()
-        self.yEdit = QLineEdit()
-        self.wEdit = QLineEdit()
-        self.hEdit = QLineEdit()
-        self.sourceEdit = QLineEdit()
+        self.xEdit = PropertyLineEdit()
+        self.yEdit = PropertyLineEdit()
+        self.wEdit = PropertyLineEdit()
+        self.hEdit = PropertyLineEdit()
+        self.srcEdit = BrowseLineEdit()
 
-        self.sourceEdit.setReadOnly(True)
+        self.srcEdit.setReadOnly(True)
 
         self.layout().addWidget(self.label,        0, 0, 1, 4)
         self.layout().addWidget(QLabel('X:'),      1, 0, 1, 1)
@@ -296,9 +333,10 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         self.layout().addWidget(QLabel('H:'),      2, 2, 1, 1)
         self.layout().addWidget(self.hEdit,        2, 3, 1, 1)
         self.layout().addWidget(QLabel('Source:'), 3, 0, 1, 1)
-        self.layout().addWidget(self.sourceEdit,   3, 1, 1, 3)
+        self.layout().addWidget(self.srcEdit,      3, 1, 1, 3)
         self.layout().setRowStretch(4, 1)
         self.stylize()
+        self.setItem()
 
     def openFileBrowser(self, _):
 
@@ -323,6 +361,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         self.yEdit.blockSignals(block)
         self.wEdit.blockSignals(block)
         self.yEdit.blockSignals(block)
+        self.srcEdit.blockSignals(block)
 
     def clearLineEdits(self):
 
@@ -330,7 +369,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         self.yEdit.setText('')
         self.wEdit.setText('')
         self.hEdit.setText('')
-        self.sourceEdit.setText('')
+        self.srcEdit.setText('')
 
     def enableLineEdits(self, enable: bool):
 
@@ -338,7 +377,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         self.yEdit.setEnabled(enable)
         self.wEdit.setEnabled(enable)
         self.hEdit.setEnabled(enable)
-        self.sourceEdit.setEnabled(enable)
+        self.srcEdit.setEnabled(enable)
 
     def disconnectLineEdits(self):
 
@@ -348,15 +387,17 @@ class OverlayItemPropertiesWidget(OverlayWidget):
             self.yEdit.editingFinished.disconnect()
             self.wEdit.editingFinished.disconnect()
             self.hEdit.editingFinished.disconnect()
+            self.srcEdit.browse.disconnect()
         
         except: pass
 
-    def connectLineEdits(self, callback):
+    def connectLineEdits(self):
 
-        self.xEdit.editingFinished.connect(callback)
-        self.yEdit.editingFinished.connect(callback)
-        self.wEdit.editingFinished.connect(callback)
-        self.hEdit.editingFinished.connect(callback)
+        self.xEdit.editingFinished.connect(self.updateItemGraphics)
+        self.yEdit.editingFinished.connect(self.updateItemGraphics)
+        self.wEdit.editingFinished.connect(self.updateItemGraphics)
+        self.hEdit.editingFinished.connect(self.updateItemGraphics)
+        self.srcEdit.browse.connect(self.updateItemSource)
 
     def linkLineEdits(self):
 
@@ -365,9 +406,10 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         self.yEdit.setText(str(self.item.graphics.y()))
         self.wEdit.setText(str(self.item.graphics.boundingRect().width()))
         self.hEdit.setText(str(self.item.graphics.boundingRect().height()))
+        self.srcEdit.setText(self.item.source)
         self.blockAllSignals(False)
 
-    def setItem(self, proxy: OverlayItemProxy):
+    def setItem(self, proxy: OverlayItemProxy = None):
 
         self.item = proxy 
         if proxy is None: 
@@ -378,10 +420,10 @@ class OverlayItemPropertiesWidget(OverlayWidget):
             return 
 
         self.linkLineEdits()
-        self.connectLineEdits(self.updateItem)
+        self.connectLineEdits()
         self.enableLineEdits(True)
 
-    def updateItem(self):
+    def updateItemGraphics(self):
 
         if self.item is None: return
 
@@ -392,4 +434,14 @@ class OverlayItemPropertiesWidget(OverlayWidget):
             float(self.wEdit.text()),
             float(self.hEdit.text())
         )
+
+    def updateItemSource(self, event: QEvent):
+
+        if event is self.currentEvent: return 
+        self.currentEvent = event
+
+        fname, _ = QFileDialog.getOpenFileName(filter='Images (*.jpg, *.png)')
+        self.srcEdit.setText(fname)
+        self.item.source = fname
+        self.item.graphics.updateImage(fname)
 
