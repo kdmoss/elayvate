@@ -313,7 +313,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         super().__init__(parent)
         QGridLayout(self)
 
-        self.item = None 
+        self.proxy = None 
         self.label = QLabel('Properties')
         self.xEdit = PropertyLineEdit()
         self.yEdit = PropertyLineEdit()
@@ -340,7 +340,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
 
     def openFileBrowser(self, _):
 
-        fname, _ = QFileDialog.getOpenFileName(filter='Images (*.jpg, *.png)')
+        fname, _ = QFileDialog.getOpenFileName(filter='Images (*.jpg, *.jpeg, *.png)')
         self.sourceEdit.setText(fname)
 
     def stylize(self):
@@ -354,14 +354,6 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         # Label
         self.label.setStyleSheet(Style.OverlayItemBoxTitle)
         self.label.setContentsMargins(Style.SmallMargins)
-
-    def blockAllSignals(self, block: bool):
-
-        self.xEdit.blockSignals(block)
-        self.yEdit.blockSignals(block)
-        self.wEdit.blockSignals(block)
-        self.yEdit.blockSignals(block)
-        self.srcEdit.blockSignals(block)
 
     def clearLineEdits(self):
 
@@ -401,33 +393,32 @@ class OverlayItemPropertiesWidget(OverlayWidget):
 
     def linkLineEdits(self):
 
-        self.blockAllSignals(True)
-        self.xEdit.setText(str(self.item.graphics.x()))
-        self.yEdit.setText(str(self.item.graphics.y()))
-        self.wEdit.setText(str(self.item.graphics.boundingRect().width()))
-        self.hEdit.setText(str(self.item.graphics.boundingRect().height()))
-        self.srcEdit.setText(self.item.source)
-        self.blockAllSignals(False)
+        self.xEdit.setText(str(self.proxy.graphics.x()))
+        self.yEdit.setText(str(self.proxy.graphics.y()))
+        self.wEdit.setText(str(self.proxy.graphics.boundingRect().width()))
+        self.hEdit.setText(str(self.proxy.graphics.boundingRect().height()))
+        self.srcEdit.setText(self.proxy.source)
 
     def setItem(self, proxy: OverlayItemProxy = None):
 
-        self.item = proxy 
+        self.proxy = proxy 
         if proxy is None: 
             
-            self.clearLineEdits()
             self.disconnectLineEdits()
+            self.clearLineEdits()
             self.enableLineEdits(False)
             return 
 
+        self.disconnectLineEdits()
         self.linkLineEdits()
         self.connectLineEdits()
         self.enableLineEdits(True)
 
     def updateItemGraphics(self):
 
-        if self.item is None: return
+        if self.proxy is None: return
 
-        self.item.graphics.updateRect(
+        self.proxy.graphics.updateRect(
 
             float(self.xEdit.text()),
             float(self.yEdit.text()),
@@ -442,6 +433,6 @@ class OverlayItemPropertiesWidget(OverlayWidget):
 
         fname, _ = QFileDialog.getOpenFileName(filter='Images (*.jpg, *.png)')
         self.srcEdit.setText(fname)
-        self.item.source = fname
-        self.item.graphics.updateImage(fname)
+        self.proxy.source = fname
+        self.proxy.graphics.updateImage(fname)
 

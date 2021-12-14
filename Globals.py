@@ -1,7 +1,6 @@
 from typing import Dict
 from PySide6.QtCore import QMargins, QPoint
 
-
 class Style:
 
     QPushButton = '''
