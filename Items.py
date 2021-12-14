@@ -99,8 +99,7 @@ class OverlayGraphicsItem(QGraphicsRectItem):
             self.setDefaultImage()
             return 
 
-        print('here')
-        del self.image
+        # del self.image
         self.source = source
         self.image = QImage(source)
         self.image = self.image.scaled(
