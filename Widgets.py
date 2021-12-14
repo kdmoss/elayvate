@@ -431,7 +431,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         if event is self.currentEvent: return 
         self.currentEvent = event
 
-        fname, _ = QFileDialog.getOpenFileName(filter='Images (*.jpg, *.png)')
+        fname, _ = QFileDialog.getOpenFileName(filter='All Images (*.jpg *.jpeg *.png *.gif)')
         self.srcEdit.setText(fname)
         self.proxy.source = fname
         self.proxy.graphics.updateImage(fname)
