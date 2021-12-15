@@ -217,12 +217,7 @@ class OverlayFinalGraphicsItem(QGraphicsRectItem):
 
     def paint(self, painter: QPainter, option, widget):
         
-        print(self.preview().x(), self.preview().y())
-        size: QSize = QApplication.instance().primaryScreen().size()
-
         x = self.preview().x()
         y = self.preview().y()
         
-        print(x, y)
-
         if self.preview().image() is not None: painter.drawImage(x, y, self.preview().image())
