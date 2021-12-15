@@ -1,4 +1,4 @@
-from Items import OverlayGraphicsItem, OverlayListWidgetItem, ScreenPreviewItem
+from Items import OverlayPreviewGraphicsItem, OverlayListWidgetItem, ScreenPreviewItem
 from Globals import Colors, Math, Style
 from Models import OverlayItem, OverlayItemProxy
 
@@ -11,12 +11,18 @@ class EGraphicsView(QGraphicsView):
         def __init__(self, parent: QWidget):
 
             super().__init__(parent)
-            self.setScene(QGraphicsScene())
-            self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-            self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            self.setFrameShape(QFrame.Shape.NoFrame)
+            scene = QGraphicsScene()
+            self.setScene(scene)
+            self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
+            self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.setFrameShape(QFrame.NoFrame)
+
+            screen = QGraphicsRectItem(0, 0, self.screen().size().width(), self.screen().size().height())
+            screen.setBrush(Qt.NoBrush)
+            screen.setPen(Qt.NoPen)
+            self.scene().addItem(screen)
 
 class OverlayWidget(QWidget):
 
@@ -97,28 +103,26 @@ class OverlayPreviewWidget(OverlayWidget):
     def mousePressEvent(self, e: QMouseEvent):
         
         super().mousePressEvent(e)
-
         if e.button() != Qt.MouseButton.MiddleButton: return 
-        self._previousMousePosition = e.pos()
+
+        self.__previousMousePosition = e.pos()
         self.isMoving = True
 
-        application: QApplication = QApplication.instance()
-        application.setOverrideCursor(Qt.CursorShape.SizeAllCursor)
+        QApplication.instance().setOverrideCursor(Qt.SizeAllCursor)
         
     def mouseReleaseEvent(self, e: QMouseEvent):
         
         super().mouseReleaseEvent(e)
         self.isMoving = False
-        application: QApplication = QApplication.instance()
-        application.restoreOverrideCursor()
+        QApplication.instance().restoreOverrideCursor()
 
     def mouseMoveEvent(self, e: QMouseEvent):
 
         super().mouseMoveEvent(e)
         if not self.isMoving: return 
 
-        offset: QPoint = self._previousMousePosition - e.pos()
-        self._previousMousePosition = e.pos()
+        offset: QPoint = self.__previousMousePosition - e.pos()
+        self.__previousMousePosition = e.pos()
 
         vertSB = self.view.verticalScrollBar()
         horiSB = self.view.horizontalScrollBar()
@@ -130,7 +134,6 @@ class OverlayPreviewWidget(OverlayWidget):
 
         width = self.screen().size().width()
         height = self.screen().size().height()
-
         self.cellSize = Math.toCellSize(width + height)
         self.screenPreviewItem = ScreenPreviewItem(width, height, self.cellSize)
         self.view.scene().addItem(self.screenPreviewItem)
@@ -153,7 +156,7 @@ class OverlayPreviewWidget(OverlayWidget):
 
     def addItem(self, proxy: OverlayItemProxy = None, position: QPoint = None):
 
-        preview = OverlayGraphicsItem(self, 0, 0, self.cellSize * 10, self.cellSize * 10)
+        preview = OverlayPreviewGraphicsItem(self, 0, 0, self.cellSize * 10, self.cellSize * 10)
 
         if position is not None: 
 
@@ -163,26 +166,25 @@ class OverlayPreviewWidget(OverlayWidget):
 
         self.view.scene().addItem(preview)
         if proxy is None: self.itemAdded.emit(preview)
-        else: proxy.graphics = preview
+        else: proxy.setpreviewGraphicsItem(preview)
 
-    def deleteItem(self, proxy: OverlayItemProxy = None, graphics: OverlayGraphicsItem = None):
+    def deleteItem(self, proxy: OverlayItemProxy = None, graphics: OverlayPreviewGraphicsItem = None):
 
         if graphics is not None: 
             
             self.view.scene().removeItem(graphics)
             self.itemDeleted.emit(graphics)
-            return 
+        
+        elif proxy is not None: self.view.scene().removeItem(proxy.previewGraphicsItem())
 
-        if proxy is not None: self.view.scene().removeItem(proxy.graphics)
-
-    def updateItem(self, proxy: OverlayItemProxy = None, graphics: OverlayGraphicsItem = None):
+    def updateItem(self, proxy: OverlayItemProxy = None, graphics: OverlayPreviewGraphicsItem = None):
 
         if graphics is not None: self.itemChanged.emit(graphics)
 
-    def selectItem(self, selected: bool, proxy: OverlayItemProxy = None, graphics: OverlayGraphicsItem = None):
+    def selectItem(self, selected: bool, proxy: OverlayItemProxy = None, graphics: OverlayPreviewGraphicsItem = None):
 
         if graphics is not None: self.itemSelected.emit(graphics, selected)
-        elif proxy is not None: proxy.graphics.setSelected(selected)
+        elif proxy is not None: proxy.previewGraphicsItem().setSelected(selected)
 
 class OverlayItemListWidget(OverlayWidget):
 
@@ -224,11 +226,6 @@ class OverlayItemListWidget(OverlayWidget):
         if   action is newImage: self.addItem()
         elif action is deleteItem: self.deleteItem(widget=self.list.currentItem())
 
-    def resizeEvent(self, e: QResizeEvent):
-        
-        super().resizeEvent(e)
-        self.move(0, 0)
-
     def stylize(self):
 
         self.setStyleSheet(Style.OverlayItemListWidget)
@@ -248,20 +245,21 @@ class OverlayItemListWidget(OverlayWidget):
         self.list.addItem(widget)
 
         if proxy is None: self.itemAdded.emit(widget)
-        else: proxy.widget = widget
+        else: proxy.setListWidgetItem(widget)
 
     def deleteItem(self, proxy: OverlayItemProxy = None, widget: OverlayListWidgetItem = None):
 
-        if proxy is not None: self.list.takeItem(self.list.row(proxy.widget))
-        elif widget is not None: self.itemDeleted.emit(self.list.takeItem(self.list.row(widget)))
+        if widget is not None: self.itemDeleted.emit(self.list.takeItem(self.list.row(widget)))
+        elif proxy is not None: self.list.takeItem(self.list.row(proxy.listWidgetItem()))
 
 
     def selectItem(self, selected: bool, proxy: OverlayItemProxy = None, widget: OverlayListWidgetItem = None):
 
         if widget is not None: self.itemSelected.emit(widget, selected)
+
         elif proxy is not None: 
             
-            if selected: self.list.setCurrentItem(proxy.widget)
+            if selected: self.list.setCurrentItem(proxy.listWidgetItem())
             else: self.list.setCurrentItem(None)
 
     def onCurrentItemChanged(self, current: OverlayListWidgetItem, previous: OverlayListWidgetItem):
@@ -274,7 +272,7 @@ class PropertyLineEdit(QLineEdit):
     def __init__(self, value = ''):
 
         super().__init__(value)
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+        self.setContextMenuPolicy(Qt.NoContextMenu)
 
 class BrowseLineEdit(QLineEdit):
     
@@ -393,11 +391,11 @@ class OverlayItemPropertiesWidget(OverlayWidget):
 
     def linkLineEdits(self):
 
-        self.xEdit.setText(str(self.proxy.graphics.x()))
-        self.yEdit.setText(str(self.proxy.graphics.y()))
-        self.wEdit.setText(str(self.proxy.graphics.boundingRect().width()))
-        self.hEdit.setText(str(self.proxy.graphics.boundingRect().height()))
-        self.srcEdit.setText(self.proxy.source)
+        self.xEdit.setText(str(self.proxy.x()))
+        self.yEdit.setText(str(self.proxy.y()))
+        self.wEdit.setText(str(self.proxy.width()))
+        self.hEdit.setText(str(self.proxy.height()))
+        self.srcEdit.setText(self.proxy.source())
 
     def setItem(self, proxy: OverlayItemProxy = None):
 
@@ -418,7 +416,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
 
         if self.proxy is None: return
 
-        self.proxy.graphics.updateRect(
+        self.proxy.setRect(
 
             float(self.xEdit.text()),
             float(self.yEdit.text()),
@@ -433,6 +431,5 @@ class OverlayItemPropertiesWidget(OverlayWidget):
 
         fname, _ = QFileDialog.getOpenFileName(filter='All Images (*.jpg *.jpeg *.png *.gif)')
         self.srcEdit.setText(fname)
-        self.proxy.source = fname
-        self.proxy.graphics.updateImage(fname)
+        self.proxy.setSource(fname)
 

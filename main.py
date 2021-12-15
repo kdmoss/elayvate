@@ -1,14 +1,14 @@
 import sys
-from typing import Dict, List
+from typing import List
 
 from Globals import Style
-from Items import OverlayGraphicsItem, OverlayListWidgetItem
+from Items import OverlayPreviewGraphicsItem, OverlayListWidgetItem
 from Models import OverlayItemProxy
 from Widgets import EGraphicsView, OverlayItemListWidget, OverlayItemPropertiesWidget, OverlayPreviewWidget
 
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtWidgets import QApplication, QGraphicsView, QHBoxLayout, QLayout, QMainWindow, QSplitter, QWidget
-from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtWidgets import QApplication, QGraphicsRectItem, QHBoxLayout, QLayout, QMainWindow, QSplitter, QWidget
+from PySide6.QtGui import QAction, QCloseEvent, QResizeEvent
 
 class EWindow(QMainWindow):
 
@@ -33,13 +33,21 @@ class ElayvateOverlayWindow(EWindow):
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_AlwaysStackOnTop, True)
 
-        view = EGraphicsView(self.centralWidget())
-        view.setStyleSheet('background: transparent')
-        self.innerLayout().addWidget(view)
+        self.view = EGraphicsView(self.centralWidget())
+        
+        self.view.setStyleSheet('background: transparent')
+        self.view.setFixedSize(self.screen().size())
+
+        self.innerLayout().setContentsMargins(0, 0, 0, 0)
+        self.innerLayout().addWidget(self.view)
+
+    def addItem(self, proxy: OverlayItemProxy):
+
+        self.view.scene().addItem(proxy.finalGraphicsItem())
 
 class ElayvateWindow(EWindow):
     
-    items: List[OverlayItemProxy] = []
+    proxies: List[OverlayItemProxy] = []
 
     def __init__(self, overlay: ElayvateOverlayWindow):
         
@@ -134,48 +142,50 @@ class ElayvateWindow(EWindow):
 
         self.overlayFrame = OverlayPreviewWidget(self.centralWidget())
 
-        self.overlayFrame.itemAdded.connect(self.onSceneItemAdded)
-        self.overlayFrame.itemDeleted.connect(self.onSceneItemDeleted)
-        self.overlayFrame.itemChanged.connect(self.onSceneItemChanged)
-        self.overlayFrame.itemSelected.connect(self.onSceneItemSelected)
+        self.overlayFrame.itemAdded.connect(self.onPreviewItemAdded)
+        self.overlayFrame.itemDeleted.connect(self.onPreviewItemDeleted)
+        self.overlayFrame.itemChanged.connect(self.onPreviewItemChanged)
+        self.overlayFrame.itemSelected.connect(self.onPreviewItemSelected)
 
         self.hSplitter.addWidget(self.overlayFrame)
 
     def getProxy(self, object):
 
-        for i, proxy in enumerate(self.items):
+        for i, proxy in enumerate(self.proxies):
 
-            if proxy.widget is object \
-                or proxy.graphics is object: return i, proxy
+            if proxy.listWidgetItem() is object \
+                or proxy.previewGraphicsItem() is object: return i, proxy
 
         return -1, None
 
-    @Slot(OverlayGraphicsItem)
-    def onSceneItemAdded(self, object: OverlayGraphicsItem):
+    @Slot(OverlayPreviewGraphicsItem)
+    def onPreviewItemAdded(self, object: OverlayPreviewGraphicsItem):
         
         proxy = OverlayItemProxy()
-        proxy.graphics = object
+        proxy.setpreviewGraphicsItem(object)
 
         self.itemList.addItem(proxy=proxy)
-        self.items.append(proxy)
+        self.overlayWindow.addItem(proxy=proxy)
+        self.proxies.append(proxy)
 
     @Slot(OverlayListWidgetItem)
     def onListItemAdded(self, object: OverlayListWidgetItem):
         
         proxy = OverlayItemProxy()
-        proxy.widget = object 
+        proxy.setListWidgetItem(object) 
 
         self.overlayFrame.addItem(proxy=proxy)
-        self.items.append(proxy)
+        self.overlayWindow.addItem(proxy=proxy)
+        self.proxies.append(proxy)
 
-    @Slot(OverlayGraphicsItem)
-    def onSceneItemDeleted(self, object: OverlayGraphicsItem):
+    @Slot(OverlayPreviewGraphicsItem)
+    def onPreviewItemDeleted(self, object: OverlayPreviewGraphicsItem):
 
         _, proxy = self.getProxy(object)
         if proxy is None: return 
         
         self.itemList.deleteItem(proxy=proxy)
-        self.items.remove(proxy)
+        self.proxies.remove(proxy)
 
     @Slot(OverlayListWidgetItem)
     def onListItemDeleted(self, object: OverlayListWidgetItem):
@@ -184,16 +194,16 @@ class ElayvateWindow(EWindow):
         if proxy is None: return 
         
         self.overlayFrame.deleteItem(proxy=proxy)
-        self.items.remove(proxy)
+        self.proxies.remove(proxy)
 
-    @Slot(OverlayGraphicsItem)
-    def onSceneItemChanged(self, object: OverlayGraphicsItem):
+    @Slot(OverlayPreviewGraphicsItem)
+    def onPreviewItemChanged(self, object: OverlayPreviewGraphicsItem):
 
         i, proxy = self.getProxy(object)
         if proxy is None: return 
         
         self.itemProps.setItem(proxy=proxy)
-        self.items[i] = proxy
+        self.proxies[i] = proxy
 
     @Slot(OverlayListWidgetItem)
     def onListItemChanged(self, object: OverlayListWidgetItem):
@@ -202,10 +212,10 @@ class ElayvateWindow(EWindow):
         if proxy is None: return 
         
         self.itemProps.setItem(proxy=proxy)
-        self.items[i] = proxy
+        self.proxies[i] = proxy
 
-    @Slot(OverlayGraphicsItem, bool)
-    def onSceneItemSelected(self, object: OverlayGraphicsItem, selected: bool):
+    @Slot(OverlayPreviewGraphicsItem, bool)
+    def onPreviewItemSelected(self, object: OverlayPreviewGraphicsItem, selected: bool):
 
         i, proxy = self.getProxy(object)
         if proxy is None: return 
@@ -214,7 +224,7 @@ class ElayvateWindow(EWindow):
         else: self.itemProps.setItem(proxy=None)
 
         self.itemList.selectItem(selected, proxy=proxy)
-        self.items[i] = proxy 
+        self.proxies[i] = proxy 
 
     @Slot(OverlayListWidgetItem, bool)
     def onListItemSelected(self, object: OverlayListWidgetItem, selected: bool):
@@ -226,11 +236,11 @@ class ElayvateWindow(EWindow):
         else: self.itemProps.setItem(proxy=None)
 
         self.overlayFrame.selectItem(selected, proxy=proxy)
-        self.items[i] = proxy
+        self.proxies[i] = proxy
 
-    def closeEvent(self, event:QCloseEvent):
+    def closeEvent(self, event: QCloseEvent):
         
-        #overlay.showFullScreen()
+        overlay.showFullScreen()
         super().closeEvent(event)
 
 
@@ -239,6 +249,7 @@ if __name__ == '__main__':
     app = QApplication([])
     overlay = ElayvateOverlayWindow()
     window = ElayvateWindow(overlay=overlay)
+
     app.setStyleSheet(Style.QApplication)
     window.show()
     sys.exit(app.exec())

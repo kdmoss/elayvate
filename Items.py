@@ -1,8 +1,9 @@
 
+from os import set_inheritable
 from typing import Optional
 from Globals import Colors, Math
 
-from PySide6.QtGui import QColor, QFocusEvent, QImage, QKeyEvent, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBitmap, QColor, QFocusEvent, QImage, QKeyEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsItemGroup, QGraphicsLineItem, QGraphicsRectItem, QGraphicsSceneContextMenuEvent, QGraphicsSceneHoverEvent, QGraphicsSceneMouseEvent, QListWidgetItem, QMenu, QStyleOptionGraphicsItem, QWidget
 from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt
 
@@ -13,27 +14,56 @@ class OverlayListWidgetItem(QListWidgetItem):
         super().__init__(text)
         self.parent = parent
 
-class OverlayGraphicsItem(QGraphicsRectItem):
+class OverlayPreviewGraphicsItem(QGraphicsRectItem):
 
     def __init__(self, parent: QWidget, x: int, y: int, width: int, height: int):
 
         super().__init__(x, y, width, height)
         self.setAcceptHoverEvents(True)
-        self.setBrush(Qt.GlobalColor.white)
-        self.setPen(Qt.PenStyle.NoPen)
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsRectItem.ItemSendsGeometryChanges, True)
         self.setFlag(QGraphicsRectItem.ItemSendsScenePositionChanges, True)
+        self.setBrush(Qt.NoBrush)
+        self.setPen(Qt.NoPen)
+
         self.parent = parent
         self.isDragging = False
         self.setDefaultImage()
 
+    def source(self) -> str: 
+
+        return self.__source
+
+    def image(self) -> QImage:
+
+        return self.__image
+
     def setDefaultImage(self):
 
-        self.source = ''
-        self.image = QImage('./images/no_image.jpg')
-        self.image = self.image.scaled(
+        self.__source = ''
+        self.__image = QImage('./images/no_image.jpg')
+        self.__image = self.__image.scaled(
+
+            QSize(self.rect().width(), self.rect().height()), 
+            Qt.AspectRatioMode.IgnoreAspectRatio, 
+            Qt.TransformationMode.FastTransformation
+        )
+
+    def setSource(self, source: str):
+
+        self.setImage(source)
+
+    def setImage(self, source):
+
+        if source == '': 
+
+            self.setDefaultImage()
+            return 
+
+        self.__source = source
+        self.__image = QImage(source)
+        self.__image = self.__image.scaled(
 
             QSize(self.rect().width(), self.rect().height()), 
             Qt.AspectRatioMode.IgnoreAspectRatio, 
@@ -82,36 +112,18 @@ class OverlayGraphicsItem(QGraphicsRectItem):
         QApplication.instance().setOverrideCursor(Qt.CursorShape.OpenHandCursor)
         super().mouseReleaseEvent(event)
 
-    def updateRect(self, x, y, width, height):
+    def setRect(self, x, y, width, height):
 
         pos = Math.gridSnap(x, y, self.parent.cellSize)
         size = Math.gridSnap(width, height, self.parent.cellSize)
 
-        self.setRect(0, 0, size.x(), size.y())
+        super().setRect(0, 0, size.x(), size.y())
         self.setPos(pos.x(), pos.y())
-        self.updateImage(self.source)
-        self.parent.updateItem(graphics=self)
-
-    def updateImage(self, source):
-
-        if source == '': 
-
-            self.setDefaultImage()
-            return 
-
-        # del self.image
-        self.source = source
-        self.image = QImage(source)
-        self.image = self.image.scaled(
-
-            QSize(self.rect().width(), self.rect().height()), 
-            Qt.AspectRatioMode.IgnoreAspectRatio, 
-            Qt.TransformationMode.FastTransformation
-        )
+        self.setImage(self.source())
     
     def paint(self, painter: QPainter, option, widget):
 
-        painter.drawImage(0, 0, self.image)
+        painter.drawImage(0, 0, self.image())
         if self.isSelected(): 
             
             painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -191,3 +203,26 @@ class ScreenPreviewItem(QGraphicsItemGroup):
 
             line.setPen(QColor(Colors.White))
             self.addToGroup(line)
+
+class OverlayFinalGraphicsItem(QGraphicsRectItem):
+
+    def __init__(self, preview: OverlayPreviewGraphicsItem):
+
+        self.__preview = preview 
+        super().__init__()
+    
+    def preview(self) -> OverlayPreviewGraphicsItem:
+
+        return self.__preview
+
+    def paint(self, painter: QPainter, option, widget):
+        
+        print(self.preview().x(), self.preview().y())
+        size: QSize = QApplication.instance().primaryScreen().size()
+
+        x = self.preview().x()
+        y = self.preview().y()
+        
+        print(x, y)
+
+        if self.preview().image() is not None: painter.drawImage(x, y, self.preview().image())
