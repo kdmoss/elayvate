@@ -1,5 +1,6 @@
 import sys
 from typing import List
+from Dialogs import HotkeyMapperDialog
 
 from Globals import Style
 from Items import OverlayPreviewGraphicsItem, OverlayListWidgetItem
@@ -8,7 +9,7 @@ from Widgets import EGraphicsView, OverlayItemListWidget, OverlayItemPropertiesW
 
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import QApplication, QGraphicsRectItem, QHBoxLayout, QLayout, QMainWindow, QSplitter, QWidget
-from PySide6.QtGui import QAction, QCloseEvent, QResizeEvent
+from PySide6.QtGui import QAction, QCloseEvent, QKeyEvent, QResizeEvent
 
 class EWindow(QMainWindow):
 
@@ -44,6 +45,12 @@ class ElayvateOverlayWindow(EWindow):
     def addItem(self, proxy: OverlayItemProxy):
 
         self.view.scene().addItem(proxy.finalGraphicsItem())
+
+    def keyPressEvent(self, event: QKeyEvent):
+        
+        if event.modifiers() == Qt.ControlModifier and event.key() == Qt.Key_P:
+            
+            self.view.setVisible(not self.view.isVisible())
 
 class ElayvateWindow(EWindow):
     
@@ -112,6 +119,13 @@ class ElayvateWindow(EWindow):
         
         settingsMenu.addAction(preferencesAction)
         settingsMenu.addAction(hotkeyMapperAction)
+
+        hotkeyMapperAction.triggered.connect(self.openHotkeyDialog)
+
+    def openHotkeyDialog(self):
+
+        dialog = HotkeyMapperDialog(self)
+        dialog.show()
 
     def createHelpMenu(self):
 

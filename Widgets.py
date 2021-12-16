@@ -1,10 +1,85 @@
+from types import NoneType
+from typing import Callable, Dict, List
 from Items import OverlayPreviewGraphicsItem, OverlayListWidgetItem, ScreenPreviewItem
 from Globals import Colors, Math, Style
-from Models import OverlayItem, OverlayItemProxy
+from Models import OverlayItemProxy, CallableActionProxy
 
-from PySide6.QtCore import Property, QEvent, QMargins, QPoint, QRect, QSize, Qt, Signal, Slot
-from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem, QMenu, QPushButton, QSplitter, QVBoxLayout, QWidget
-from PySide6.QtGui import QContextMenuEvent, QFocusEvent, QKeyEvent, QMouseEvent, QResizeEvent, QTextBlock
+from PySide6.QtCore import QEvent, QPoint, Qt, Signal
+from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QGraphicsRectItem, QGraphicsScene, QGraphicsView, QGridLayout, QLabel, QLineEdit, QListWidget, QMenu, QVBoxLayout, QWidget
+from PySide6.QtGui import QAction, QContextMenuEvent, QKeyEvent, QMouseEvent, QResizeEvent
+
+class PropertyLineEdit(QLineEdit):
+    
+    def __init__(self, value = ''):
+
+        super().__init__(value)
+        self.setContextMenuPolicy(Qt.NoContextMenu)
+
+class ClickableLineEdit(QLineEdit):
+    
+    clicked = Signal(QEvent)
+
+    def __init__(self, value = ''):
+
+        super().__init__(value)
+        self.setReadOnly(True)
+        
+        self.__actions: List[CallableActionProxy] = []
+
+        copy = QAction('Copy')
+        copy.setShortcut('Ctrl+C')
+
+        self.addAction(copy, lambda _: QApplication.clipboard().setText(self.text()))
+        self.addSeperator()
+
+    def mousePressEvent(self, event: QMouseEvent):
+
+        if event.button() is Qt.MouseButton.LeftButton: self.clicked.emit(event)
+        super().mousePressEvent(event)
+
+    def getCallableAction(self, action: QAction) -> CallableActionProxy:
+
+        if action is None: return None
+
+        for proxy in self.__actions: 
+            if proxy.action() is action: return proxy
+        
+        return None 
+
+    def addSeperator(self):
+
+        self.__actions.append(CallableActionProxy(None, None))
+
+    def addAction(self, action: QAction, func: Callable):
+
+        self.__actions.append(CallableActionProxy(action, func))
+
+    def removeAction(self, action: QAction):
+
+        proxy = self.getCallableAction(action)
+        self.__actions.remove(proxy)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+
+        contextMenu = QMenu()
+
+        for proxy in self.__actions:
+
+            if proxy.action() is None: contextMenu.addSeparator()
+            else: contextMenu.addAction(proxy.action())
+
+        action = contextMenu.exec(self.mapToGlobal(event.pos()))
+        callableAction = self.getCallableAction(action)
+
+        if callableAction is not None: callableAction.callable()(event)
+
+class BrowseLineEdit(ClickableLineEdit):
+    
+    def __init__(self, value = ''):
+
+        super().__init__(value)
+        self.addAction(QAction('Browse...'), self.clicked.emit)
+        self.setToolTip('Left-click to change the source. \nRight-click for more actions.')
 
 class EGraphicsView(QGraphicsView):
 
@@ -267,41 +342,6 @@ class OverlayItemListWidget(OverlayWidget):
         if previous is not None: self.selectItem(False, widget=previous)
         if current is not None: self.selectItem(True, widget=current)
 
-class PropertyLineEdit(QLineEdit):
-    
-    def __init__(self, value = ''):
-
-        super().__init__(value)
-        self.setContextMenuPolicy(Qt.NoContextMenu)
-
-class BrowseLineEdit(QLineEdit):
-    
-    browse = Signal(QEvent)
-
-    def __init__(self, value = ''):
-
-        super().__init__(value)
-        self.setToolTip('Left-click to change the source. \nRight-click for more actions.')
-
-    def mousePressEvent(self, event: QMouseEvent):
-
-        if event.button() is Qt.MouseButton.LeftButton: self.browse.emit(event)
-        super().mousePressEvent(event)
-
-    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
-        
-        contextMenu = QMenu()
-        copy = contextMenu.addAction('Copy')
-
-        copy.setShortcut('Ctrl+C')
-        contextMenu.addSeparator()
-
-        browse = contextMenu.addAction('Browse...')
-        action = contextMenu.exec(self.mapToGlobal(event.pos()))
-
-        if   action is browse: self.browse.emit(event)
-        elif action is copy: QApplication.clipboard().setText(self.text())
-
 class OverlayItemPropertiesWidget(OverlayWidget):
 
     currentEvent = None
@@ -318,8 +358,6 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         self.wEdit = PropertyLineEdit()
         self.hEdit = PropertyLineEdit()
         self.srcEdit = BrowseLineEdit()
-
-        self.srcEdit.setReadOnly(True)
 
         self.layout().addWidget(self.label,        0, 0, 1, 4)
         self.layout().addWidget(QLabel('X:'),      1, 0, 1, 1)
@@ -377,7 +415,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
             self.yEdit.editingFinished.disconnect()
             self.wEdit.editingFinished.disconnect()
             self.hEdit.editingFinished.disconnect()
-            self.srcEdit.browse.disconnect()
+            self.srcEdit.clicked.disconnect()
         
         except: pass
 
@@ -387,7 +425,7 @@ class OverlayItemPropertiesWidget(OverlayWidget):
         self.yEdit.editingFinished.connect(self.updateItemGraphics)
         self.wEdit.editingFinished.connect(self.updateItemGraphics)
         self.hEdit.editingFinished.connect(self.updateItemGraphics)
-        self.srcEdit.browse.connect(self.updateItemSource)
+        self.srcEdit.clicked.connect(self.updateItemSource)
 
     def linkLineEdits(self):
 
@@ -423,6 +461,9 @@ class OverlayItemPropertiesWidget(OverlayWidget):
             float(self.wEdit.text()),
             float(self.hEdit.text())
         )
+
+        # Quick and dirty way to format fields
+        self.setItem(self.proxy)
 
     def updateItemSource(self, event: QEvent):
 

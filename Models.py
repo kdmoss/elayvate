@@ -1,4 +1,5 @@
-from PySide6.QtWidgets import QGraphicsRectItem, QListWidgetItem
+from typing import Callable
+from PySide6.QtGui import QAction
 
 from Items import OverlayFinalGraphicsItem, OverlayPreviewGraphicsItem, OverlayListWidgetItem
 
@@ -14,6 +15,21 @@ class OverlayItem():
     def __init__(self):
 
         super().__init__()
+
+class CallableActionProxy:
+
+    def __init__(self, action: QAction, callable: Callable):
+
+        self.__action = action 
+        self.__callable = callable
+
+    def callable(self): 
+
+        return self.__callable
+
+    def action(self):
+
+        return self.__action
 
 class OverlayItemProxy():
 
